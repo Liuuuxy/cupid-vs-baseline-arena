@@ -1,0 +1,16 @@
+id,model-id,model,input-price,output-price,speed,intelligence,context-window,max-output
+1,openai/gpt-4o,GPT-4o,0.0025,0.01,4.5,5,128000,16384
+2,openai/gpt-4o-mini,GPT-4o Mini,0.00015,0.0006,5,4,128000,16384
+3,anthropic/claude-3.5-sonnet,Claude 3.5 Sonnet,0.003,0.015,4,5,200000,8192
+4,anthropic/claude-3-haiku,Claude 3 Haiku,0.00025,0.00125,5,3.5,200000,4096
+5,google/gemini-2.0-flash-exp:free,Gemini 2.0 Flash,0,0,4.5,4,1000000,8192
+6,google/gemini-pro-1.5,Gemini Pro 1.5,0.00125,0.005,3.5,4.5,2000000,8192
+7,meta-llama/llama-3.3-70b-instruct,Llama 3.3 70B,0.0004,0.0004,3.5,4,131000,4096
+8,meta-llama/llama-3.1-8b-instruct,Llama 3.1 8B,0.00005,0.00008,5,3,131000,4096
+9,mistralai/mistral-large-2411,Mistral Large,0.002,0.006,4,4.5,128000,4096
+10,mistralai/mistral-small-3.1-24b-instruct,Mistral Small 3.1,0.0001,0.0003,4.5,3.5,32000,4096
+11,deepseek/deepseek-chat-v3-0324,DeepSeek Chat v3,0.00014,0.00028,4,4.5,64000,8192
+12,qwen/qwen-2.5-72b-instruct,Qwen 2.5 72B,0.0004,0.0004,3.5,4.5,131000,8192
+13,cohere/command-r-plus,Command R+,0.0025,0.01,3.5,4,128000,4096
+14,x-ai/grok-2-1212,Grok 2,0.002,0.01,4,4.5,131000,8192
+15,nvidia/llama-3.1-nemotron-70b-instruct,Nemotron 70B,0.00035,0.0004,3.5,4.5,131000,4096
