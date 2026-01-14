@@ -1,0 +1,4 @@
+{
+  "name": "CUPID vs Baseline Arena",
+  "description": "A Dual-Arena Bandit algorithm testbench comparing CUPID (Contextual Pairwise Independent Decisions) against a Bradley-Terry Baseline, featuring an LLM-driven feedback loop."
+}
