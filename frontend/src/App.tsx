@@ -785,19 +785,27 @@ const App: React.FC = () => {
                 <DollarSign size={18} /> Budget Constraints
               </h3>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Maximum Cost ($)
-                </label>
-                <input
-                  type="number"
-                  min="0.01"
-                  className="w-full border rounded p-2"
-                  value={budgetConstraints.maxCost}
-                  onChange={e => setBudgetConstraints({ ...budgetConstraints, maxCost: parseFloat(e.target.value) || 0.01 })}
-                />
-                <p className="text-xs text-gray-500 mt-1">Total spending limit across all API calls</p>
-              </div>
+              <input
+                type="number"
+                min="0.000001"
+                max="0.999999"
+                step="0.01"
+                className="w-full border rounded p-2"
+                value={budgetConstraints.maxCost}
+                onChange={(e) => {
+                  // 1. Allow typing freely so you can type "0.5" without it deleting "0"
+                  setBudgetConstraints({ ...budgetConstraints, maxCost: parseFloat(e.target.value) });
+                }}
+                onBlur={(e) => {
+                  // 2. When user leaves the field, force the limit strictly > 0 and < 1
+                  let val = parseFloat(e.target.value);
+
+                  if (isNaN(val) || val <= 0) val = 0.01; // Minimum default
+                  if (val >= 1) val = 0.99;               // Maximum limit
+
+                  setBudgetConstraints({ ...budgetConstraints, maxCost: val });
+                }}
+              />
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
