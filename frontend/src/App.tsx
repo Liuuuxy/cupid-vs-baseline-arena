@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   ArrowRight, MessageSquare, User, CheckCircle,
-  Star, DollarSign, Zap, Brain, X, Info, RefreshCw, 
+  Star, DollarSign, Zap, Brain, X, Info, RefreshCw,
   AlertCircle, Download, Send, MessageCircle, Target, Sparkles
 } from 'lucide-react';
 
@@ -304,7 +304,7 @@ const App: React.FC = () => {
 
   const sendOpenTestMessage = async () => {
     if (!openTestInput.trim() || openTestLoading) return;
-    
+
     const userMsg: OpenTestMessage = { role: 'user', content: openTestInput, system: openTestSystem };
     setOpenTestMessages(prev => [...prev, userMsg]);
     setOpenTestInput('');
@@ -323,26 +323,26 @@ const App: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        const assistantMsg: OpenTestMessage = { 
-          role: 'assistant', 
-          content: data.response || 'No response received', 
-          system: openTestSystem 
+        const assistantMsg: OpenTestMessage = {
+          role: 'assistant',
+          content: data.response || 'No response received',
+          system: openTestSystem
         };
         setOpenTestMessages(prev => [...prev, assistantMsg]);
       } else {
-        const assistantMsg: OpenTestMessage = { 
-          role: 'assistant', 
-          content: '[Demo mode: Free chat endpoint not connected. In the full version, you would chat with the final model here.]', 
-          system: openTestSystem 
+        const assistantMsg: OpenTestMessage = {
+          role: 'assistant',
+          content: '[Demo mode: Free chat endpoint not connected. In the full version, you would chat with the final model here.]',
+          system: openTestSystem
         };
         setOpenTestMessages(prev => [...prev, assistantMsg]);
       }
     } catch (e) {
       console.error('Chat error:', e);
-      const assistantMsg: OpenTestMessage = { 
-        role: 'assistant', 
-        content: '[Connection error. Please try again.]', 
-        system: openTestSystem 
+      const assistantMsg: OpenTestMessage = {
+        role: 'assistant',
+        content: '[Connection error. Please try again.]',
+        system: openTestSystem
       };
       setOpenTestMessages(prev => [...prev, assistantMsg]);
     } finally {
@@ -564,7 +564,6 @@ const App: React.FC = () => {
             </ol>
             <h3 className="text-lg font-semibold mt-4">Important Notes</h3>
             <ul>
-              <li><strong>Skip anything:</strong> You may skip any question or round without penalty.</li>
               <li><strong>Model names hidden:</strong> You will never see which AI model produced any response.</li>
               <li><strong>Text only:</strong> This study involves text responses only (no images, audio, or video).</li>
               <li><strong>Time:</strong> Approximately 15-30 minutes</li>
@@ -598,7 +597,7 @@ const App: React.FC = () => {
               <div><label className="block text-sm font-medium text-gray-700 mb-1">How often do you use AI chatbots? (optional)</label><div className="flex items-center gap-2 text-sm text-gray-500"><span>Rarely</span><input type="range" min="1" max="5" className="flex-grow" value={demographics.familiarity} onChange={e => setDemographics({ ...demographics, familiarity: parseInt(e.target.value) })} /><span>Daily</span></div></div>
               <hr className="my-4" />
               <h3 className="text-lg font-bold flex items-center gap-2"><DollarSign size={18} /> Study Settings</h3>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Max Budget ($)</label><input type="number" step="0.1" min="0.10" className="w-full border rounded p-2" value={budgetConstraints.maxCost} onChange={e => setBudgetConstraints({ ...budgetConstraints, maxCost: parseFloat(e.target.value) || 0.10 })} /><p className="text-xs text-gray-500 mt-1">Total API cost limit for your session</p></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Max Budget ($)</label><input type="number" step="any" min="0.10" className="w-full border rounded p-2" value={budgetConstraints.maxCost} onChange={e => setBudgetConstraints({ ...budgetConstraints, maxCost: parseFloat(e.target.value) || 0.10 })} /><p className="text-xs text-gray-500 mt-1">Total API cost limit for your session</p></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Number of Rounds (3-20)</label><input type="number" min="3" max="20" className="w-full border rounded p-2" value={budgetConstraints.maxRounds} onChange={e => setBudgetConstraints({ ...budgetConstraints, maxRounds: parseInt(e.target.value) || 3 })} /><p className="text-xs text-gray-500 mt-1">How many comparison rounds</p></div>
               <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition mt-4">Continue</button>
             </form>
@@ -682,7 +681,7 @@ const App: React.FC = () => {
           {loading && <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center"><div className="flex flex-col items-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div><p className="font-mono text-sm">Getting responses...</p></div></div>}
           {error && <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2"><AlertCircle size={20} />{error}</div>}
           <div className="bg-white p-4 rounded-lg shadow-sm border"><span className="text-xs font-bold text-gray-400 uppercase">Your Question</span><p className="text-gray-800 font-medium mt-1">{prompt}</p></div>
-          
+
           {/* SYSTEM A - includes routing cost */}
           <section>
             <div className="flex items-center justify-between mb-3"><h2 className="text-violet-600 font-bold text-lg">System A</h2><span className="text-xs text-violet-500 bg-violet-50 px-2 py-1 rounded">Total Cost: ${systemACost.toFixed(4)}</span></div>
@@ -701,8 +700,9 @@ const App: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{renderModelCard('left', arenaState?.baseline_pair.left, baselineVote, setBaselineVote, 'emerald', 'baseline')}{renderModelCard('right', arenaState?.baseline_pair.right, baselineVote, setBaselineVote, 'emerald', 'baseline')}</div>
             {/* FAKE feedback for System B - NOT stored, just for UI consistency */}
             <div className="mt-4 bg-emerald-50 p-4 rounded-lg border border-emerald-100">
-              <label className="flex items-center text-sm font-bold text-emerald-900 mb-2"><MessageSquare size={16} className="mr-2" />Notes (optional)</label>
-              <input type="text" className="w-full border border-emerald-200 rounded p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Any thoughts on these responses..." value={baselineFakeFeedback} onChange={(e) => setBaselineFakeFeedback(e.target.value)} />
+              <label className="flex items-center text-sm font-bold text-emerald-900 mb-2"><MessageSquare size={16} className="mr-2" />What influenced your choice? (based on Model Specs, optional)</label>
+              <input type="text" className="w-full border border-emerald-200 rounded p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="e.g., 'Higher intelligence score', 'Faster speed', 'Better reasoning', 'Lower price'..." value={baselineFakeFeedback} onChange={(e) => setBaselineFakeFeedback(e.target.value)} />
+              <p className="text-xs text-violet-500 mt-2">💡 Click <strong>"View Model Specs"</strong> on each option to see detailed attributes like intelligence, speed, pricing, and capabilities.</p>
             </div>
           </section>
           {/* Footer with LARGER next prompt input */}
