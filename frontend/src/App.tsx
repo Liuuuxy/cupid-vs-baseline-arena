@@ -789,7 +789,7 @@ const App: React.FC = () => {
                 type="number"
                 min="0.01"
                 max="1.00"
-                step="0.01"
+                step="any"
                 className="w-full border rounded p-2"
                 value={budgetConstraints.maxCost}
                 onChange={(e) => {
