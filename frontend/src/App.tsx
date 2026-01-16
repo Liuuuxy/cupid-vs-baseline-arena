@@ -791,7 +791,6 @@ const App: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  step="0.1"
                   min="0.01"
                   className="w-full border rounded p-2"
                   value={budgetConstraints.maxCost}
