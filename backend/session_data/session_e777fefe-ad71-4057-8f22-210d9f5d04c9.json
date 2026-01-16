@@ -1,0 +1,122 @@
+{
+  "session_id": "e777fefe-ad71-4057-8f22-210d9f5d04c9",
+  "saved_at": "2026-01-16T00:16:45.561759",
+  "demographics": {
+    "age": 22,
+    "education": "Undergraduate",
+    "major": "Computer Science",
+    "familiarity": 3
+  },
+  "persona": {
+    "id": "speed",
+    "title": "The Speed Enthusiast",
+    "description": "You value fast response times above all. You need quick iterations and cannot wait for slow models, even if they are smarter.",
+    "icon": {
+      "type": {},
+      "key": null,
+      "ref": null,
+      "props": {
+        "className": "text-yellow-500",
+        "size": 32
+      },
+      "_owner": null,
+      "_store": {}
+    },
+    "priorities": [
+      "speed"
+    ]
+  },
+  "budget": {
+    "maxCost": 0.91,
+    "maxRounds": 3
+  },
+  "history": [
+    {
+      "round": 1,
+      "prompt": "what is c#",
+      "cupid_left_id": 17,
+      "cupid_right_id": 23,
+      "cupid_vote": "right",
+      "baseline_left_id": 5,
+      "baseline_right_id": 13,
+      "baseline_vote": "left",
+      "feedback": "",
+      "timestamp": "2026-01-16T07:14:52.410Z"
+    },
+    {
+      "round": 2,
+      "prompt": "how do you prepare potatos for frying",
+      "cupid_left_id": 18,
+      "cupid_right_id": 10,
+      "cupid_vote": "right",
+      "baseline_left_id": 6,
+      "baseline_right_id": 7,
+      "baseline_vote": "left",
+      "feedback": "",
+      "timestamp": "2026-01-16T07:16:01.662Z"
+    },
+    {
+      "round": 3,
+      "prompt": "what is meant by the term singularity",
+      "cupid_left_id": 16,
+      "cupid_right_id": 15,
+      "cupid_vote": "right",
+      "baseline_left_id": 18,
+      "baseline_right_id": 6,
+      "baseline_vote": "right",
+      "feedback": "",
+      "timestamp": "2026-01-16T07:16:16.810Z"
+    }
+  ],
+  "evaluation": {
+    "rating_a": 4,
+    "rating_b": 3,
+    "comment": ""
+  },
+  "final_cost": 0.0526223,
+  "backend_history": [
+    {
+      "round": 1,
+      "prompt": "what is c#",
+      "cupid_left_id": 17,
+      "cupid_right_id": 23,
+      "baseline_left_id": 5,
+      "baseline_right_id": 13,
+      "feedback": "",
+      "cupid_vote": null,
+      "baseline_vote": null,
+      "round_cost": 0.0320582,
+      "total_cost": 0.0320582
+    },
+    {
+      "round": 2,
+      "prompt": "how do you prepare potatos for frying",
+      "cupid_left_id": 18,
+      "cupid_right_id": 10,
+      "baseline_left_id": 6,
+      "baseline_right_id": 7,
+      "feedback": "",
+      "cupid_vote": "right",
+      "baseline_vote": "left",
+      "round_cost": 0.01649505,
+      "total_cost": 0.048553250000000006
+    },
+    {
+      "round": 3,
+      "prompt": "what is meant by the term singularity",
+      "cupid_left_id": 16,
+      "cupid_right_id": 15,
+      "baseline_left_id": 18,
+      "baseline_right_id": 6,
+      "feedback": "",
+      "cupid_vote": "right",
+      "baseline_vote": "left",
+      "round_cost": 0.00406905,
+      "total_cost": 0.0526223
+    }
+  ],
+  "budget_settings": {
+    "cost": 0.91,
+    "rounds": 3
+  }
+}
