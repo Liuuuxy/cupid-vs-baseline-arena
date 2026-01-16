@@ -437,6 +437,23 @@ class CUPIDState:
         # Cost tracking
         self.total_cost = 0.0
         self.round_count = 0
+        
+        # History for tracking
+        self.history: List[Dict] = []
+    
+    @property
+    def current_left_id(self) -> Optional[int]:
+        """Get the actual model ID for current left arm."""
+        if self.current_left_idx is not None and 0 <= self.current_left_idx < len(self.arms):
+            return self.arms[self.current_left_idx]
+        return None
+    
+    @property
+    def current_right_id(self) -> Optional[int]:
+        """Get the actual model ID for current right arm."""
+        if self.current_right_idx is not None and 0 <= self.current_right_idx < len(self.arms):
+            return self.arms[self.current_right_idx]
+        return None
 
     def select_pair(self, direction_text: str = "") -> Tuple[int, int]:
         """Select next pair using expected UCB."""
@@ -589,6 +606,23 @@ class BaselineState:
         # Cost tracking
         self.total_cost = 0.0
         self.round_count = 0
+        
+        # History for tracking
+        self.history: List[Dict] = []
+    
+    @property
+    def current_left_id(self) -> Optional[int]:
+        """Get the actual model ID for current left arm."""
+        if self.current_left_idx is not None and 0 <= self.current_left_idx < len(self.arms):
+            return self.arms[self.current_left_idx]
+        return None
+    
+    @property
+    def current_right_id(self) -> Optional[int]:
+        """Get the actual model ID for current right arm."""
+        if self.current_right_idx is not None and 0 <= self.current_right_idx < len(self.arms):
+            return self.arms[self.current_right_idx]
+        return None
 
     def select_pair(self) -> Tuple[int, int]:
         """Select next pair using LMArena-style sampling."""
@@ -646,6 +680,13 @@ class SessionState:
         self.cupid = CUPIDState(arms, contexts)
         self.baseline = BaselineState(arms)
         self.round_count = 0
+
+        # Routing cost for language feedback bias calculation (CUPID only)
+        self.routing_cost: float = 0.0
+
+        # Track final converged models
+        self.final_cupid_model_id: Optional[int] = None
+        self.final_baseline_model_id: Optional[int] = None
 
         # User study metadata
         self.budget_cost: Optional[float] = None
@@ -780,7 +821,10 @@ class ModelResponse(BaseModel):
 class InteractResponse(BaseModel):
     session_id: str
     round: int
-    total_cost: float
+    total_cost: float  # Keep for backward compatibility
+    cupid_cost: float  # Separate cost for System A
+    baseline_cost: float  # Separate cost for System B
+    routing_cost: float  # Cost for language feedback routing model
     cLeft: ModelResponse
     cRight: ModelResponse
     bLeft: ModelResponse
@@ -789,6 +833,17 @@ class InteractResponse(BaseModel):
     cRightStats: Optional[ModelStats] = None
     bLeftStats: Optional[ModelStats] = None
     bRightStats: Optional[ModelStats] = None
+
+
+class ChatRequest(BaseModel):
+    session_id: str
+    message: str
+    system: str = Field(..., description="'cupid' or 'baseline'")
+
+
+class ChatResponse(BaseModel):
+    response: str
+    cost: float
 
 
 class SessionInfoResponse(BaseModel):
@@ -900,6 +955,9 @@ async def interact(request: InteractRequest):
         cupid_winner_is_left = "left" in request.previous_vote.lower()
 
     if cupid_winner_is_left is not None:
+        # Track the winning model as the final converged model
+        if state.cupid.current_left_id is not None and state.cupid.current_right_id is not None:
+            state.final_cupid_model_id = state.cupid.current_left_id if cupid_winner_is_left else state.cupid.current_right_id
         state.cupid.update_with_vote(cupid_winner_is_left)
 
     # Handle Baseline vote
@@ -910,6 +968,9 @@ async def interact(request: InteractRequest):
         baseline_winner_is_left = "left" in request.previous_vote.lower()
 
     if baseline_winner_is_left is not None:
+        # Track the winning model as the final converged model
+        if state.baseline.current_left_id is not None and state.baseline.current_right_id is not None:
+            state.final_baseline_model_id = state.baseline.current_left_id if baseline_winner_is_left else state.baseline.current_right_id
         state.baseline.update_with_vote(baseline_winner_is_left)
 
     # Select new pairs
@@ -972,6 +1033,9 @@ async def interact(request: InteractRequest):
         session_id=session_id,
         round=state.round_count,
         total_cost=total_cost,
+        cupid_cost=state.cupid.total_cost,
+        baseline_cost=state.baseline.total_cost,
+        routing_cost=getattr(state, 'routing_cost', 0.0),
         cLeft=ModelResponse(
             model_id=cupid_left_id,
             model_name=_model_display_name_from_id(cupid_left_id),
@@ -1107,6 +1171,54 @@ async def list_sessions():
         pass
 
     return {"sessions": sessions_list, "count": len(sessions_list)}
+
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat_with_model(request: ChatRequest):
+    """
+    Chat endpoint for open testing phase.
+    Allows users to chat with the final converged model from either system.
+    """
+    session_id = request.session_id
+    
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    state = sessions[session_id]
+    
+    # Determine which model to use based on system selection
+    if request.system == 'cupid':
+        # Use the most recently selected CUPID model (winner of last round)
+        if state.final_cupid_model_id:
+            model_id = state.final_cupid_model_id
+        elif state.cupid.history:
+            # Get most recent winner
+            last_entry = state.cupid.history[-1]
+            model_id = last_entry.get('winner_id', state.cupid.arms[0] if state.cupid.arms else MODEL_IDS[0])
+        else:
+            model_id = state.cupid.arms[0] if state.cupid.arms else MODEL_IDS[0]
+    else:  # baseline
+        if state.final_baseline_model_id:
+            model_id = state.final_baseline_model_id
+        elif state.baseline.history:
+            last_entry = state.baseline.history[-1]
+            model_id = last_entry.get('winner_id', state.baseline.arms[0] if state.baseline.arms else MODEL_IDS[0])
+        else:
+            model_id = state.baseline.arms[0] if state.baseline.arms else MODEL_IDS[0]
+    
+    # Call the model
+    result = call_openrouter(request.message, model_id)
+    
+    # Track cost
+    if request.system == 'cupid':
+        state.cupid.total_cost += result["cost"]
+    else:
+        state.baseline.total_cost += result["cost"]
+    
+    return ChatResponse(
+        response=result["text"],
+        cost=result["cost"]
+    )
 
 
 # ================== Main ==================
