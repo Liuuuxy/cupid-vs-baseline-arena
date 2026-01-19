@@ -1184,8 +1184,38 @@ const App: React.FC = () => {
         <div className="max-w-xl w-full bg-white shadow-xl rounded-2xl p-12 text-center">
           <CheckCircle className="mx-auto text-green-500 mb-6" size={80} />
           <h1 className="text-3xl font-bold mb-2">Thank You!</h1>
-          <p className="text-gray-600 mb-8">Your feedback helps us improve LLM matchmaking systems.</p>
-          <button onClick={downloadResults} className="mb-4 w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 flex items-center justify-center gap-2"><Download size={18} /> Download Your Data</button>
+          <p className="text-gray-600 mb-6">Your feedback helps us improve LLM matchmaking systems.</p>
+          
+          {/* Step 1: Download */}
+          <div className="bg-gray-50 rounded-xl p-6 mb-6 text-left">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold">1</div>
+              <span className="font-bold text-gray-800">Download your results</span>
+            </div>
+            <button onClick={downloadResults} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 flex items-center justify-center gap-2">
+              <Download size={18} /> Download JSON File
+            </button>
+          </div>
+
+          {/* Step 2: Upload to Survey */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 mb-6 text-left border border-green-200">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="bg-green-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold">2</div>
+              <span className="font-bold text-gray-800">Submit your results (anonymous)</span>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Please upload the JSON file you just downloaded to our survey. Your submission is <strong>completely anonymous</strong>.
+            </p>
+            <a 
+              href="https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbesl1iMmrT8" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 flex items-center justify-center gap-2 transition"
+            >
+              <ArrowRight size={18} /> Go to Survey & Upload
+            </a>
+          </div>
+
           <p className="text-sm text-gray-400">Session: {sessionId}</p>
         </div>
       </div>
