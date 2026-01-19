@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
 import {
   ArrowRight, MessageSquare, User, CheckCircle,
   Star, DollarSign, Zap, Brain, X, Info, RefreshCw, 
@@ -8,6 +9,70 @@ import {
 
 // --- API CONFIGURATION ---
 const API_URL = 'https://cupid-vs-baseline-arena.onrender.com';
+
+// --- MARKDOWN COMPONENT WITH STYLING ---
+const Markdown: React.FC<{ content: string; className?: string }> = ({ content, className = '' }) => (
+  <ReactMarkdown
+    className={`prose prose-sm max-w-none ${className}`}
+    components={{
+      // Headers
+      h1: ({ children }) => <h1 className="text-xl font-bold mt-4 mb-2 text-gray-900">{children}</h1>,
+      h2: ({ children }) => <h2 className="text-lg font-bold mt-3 mb-2 text-gray-900">{children}</h2>,
+      h3: ({ children }) => <h3 className="text-base font-bold mt-2 mb-1 text-gray-900">{children}</h3>,
+      h4: ({ children }) => <h4 className="text-sm font-bold mt-2 mb-1 text-gray-800">{children}</h4>,
+      // Paragraphs
+      p: ({ children }) => <p className="mb-2 text-gray-700 leading-relaxed">{children}</p>,
+      // Lists
+      ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1 text-gray-700">{children}</ul>,
+      ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1 text-gray-700">{children}</ol>,
+      li: ({ children }) => <li className="text-gray-700">{children}</li>,
+      // Code
+      code: ({ className, children, ...props }) => {
+        const isInline = !className;
+        if (isInline) {
+          return <code className="bg-gray-100 text-pink-600 px-1 py-0.5 rounded text-xs font-mono" {...props}>{children}</code>;
+        }
+        return (
+          <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-xs font-mono overflow-x-auto my-2" {...props}>
+            {children}
+          </code>
+        );
+      },
+      pre: ({ children }) => <pre className="bg-gray-900 rounded-lg overflow-x-auto my-2">{children}</pre>,
+      // Blockquote
+      blockquote: ({ children }) => (
+        <blockquote className="border-l-4 border-blue-400 pl-4 py-1 my-2 bg-blue-50 text-gray-700 italic">
+          {children}
+        </blockquote>
+      ),
+      // Links
+      a: ({ href, children }) => (
+        <a href={href} className="text-blue-600 hover:text-blue-800 underline" target="_blank" rel="noopener noreferrer">
+          {children}
+        </a>
+      ),
+      // Strong/Bold
+      strong: ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
+      // Emphasis/Italic
+      em: ({ children }) => <em className="italic">{children}</em>,
+      // Horizontal Rule
+      hr: () => <hr className="my-4 border-gray-300" />,
+      // Tables
+      table: ({ children }) => (
+        <div className="overflow-x-auto my-2">
+          <table className="min-w-full border border-gray-300 text-sm">{children}</table>
+        </div>
+      ),
+      thead: ({ children }) => <thead className="bg-gray-100">{children}</thead>,
+      tbody: ({ children }) => <tbody>{children}</tbody>,
+      tr: ({ children }) => <tr className="border-b border-gray-200">{children}</tr>,
+      th: ({ children }) => <th className="px-3 py-2 text-left font-bold text-gray-700 border-r border-gray-200">{children}</th>,
+      td: ({ children }) => <td className="px-3 py-2 text-gray-700 border-r border-gray-200">{children}</td>,
+    }}
+  >
+    {content}
+  </ReactMarkdown>
+);
 
 // --- TYPES ---
 type Phase = 'consent' | 'calibration' | 'interaction' | 'openTesting' | 'evaluation';
@@ -129,7 +194,6 @@ function sampleBudget(): BudgetConstraints {
 }
 
 // --- CONSTRAINT SETS FOR TRADITIONAL MODE ---
-// Each set is guaranteed to have at least one model that satisfies all constraints
 const CONSTRAINT_SETS: Constraint[][] = [
   [
     { attribute: 'max_output', operator: '>=', value: 16000, displayName: 'Max Output Tokens', unit: 'tokens' },
@@ -204,11 +268,8 @@ const App: React.FC = () => {
   const [sessionId, setSessionId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
-  // Persona group selection
   const [personaGroup, setPersonaGroup] = useState<PersonaGroup | null>(null);
   const [selectedExpertSubject, setSelectedExpertSubject] = useState<string | null>(null);
-  
-  // Traditional mode constraints
   const [assignedConstraints, setAssignedConstraints] = useState<Constraint[]>([]);
 
   const [demographics, setDemographics] = useState<Demographics>({
@@ -230,7 +291,7 @@ const App: React.FC = () => {
   const [cupidVote, setCupidVote] = useState<'left' | 'right' | null>(null);
   const [baselineVote, setBaselineVote] = useState<'left' | 'right' | null>(null);
   const [feedbackA, setFeedbackA] = useState<string>('');
-  const [feedbackB, setFeedbackB] = useState<string>(''); // Fake feedback for System B (not sent)
+  const [feedbackB, setFeedbackB] = useState<string>('');
   const [roundHistory, setRoundHistory] = useState<RoundHistory[]>([]);
 
   const [showModelInfo, setShowModelInfo] = useState<{ system: 'cupid' | 'baseline', side: 'left' | 'right' } | null>(null);
@@ -257,7 +318,7 @@ const App: React.FC = () => {
         session_id: isFirst ? null : sessionId,
         prompt: promptToUse,
         previous_vote: null,
-        feedback_text: feedbackA || '', // Only System A feedback is sent
+        feedback_text: feedbackA || '',
       };
 
       if (!isFirst && cupidVote) payload.cupid_vote = cupidVote;
@@ -344,7 +405,6 @@ const App: React.FC = () => {
   const sendOpenTestMessage = async () => {
     if (!openTestInput.trim() || openTestLoading) return;
     
-    // Check round limits
     if (openTestSystem === 'A' && openTestRoundsA >= OPEN_TESTING_MAX_ROUNDS) {
       setError(`System A has reached the maximum of ${OPEN_TESTING_MAX_ROUNDS} rounds.`);
       return;
@@ -360,7 +420,6 @@ const App: React.FC = () => {
     setOpenTestLoading(true);
     setError(null);
 
-    // Increment round counter
     if (openTestSystem === 'A') setOpenTestRoundsA(prev => prev + 1);
     else setOpenTestRoundsB(prev => prev + 1);
 
@@ -441,7 +500,6 @@ const App: React.FC = () => {
     setPersonaGroup(group);
     
     if (group === 'traditional') {
-      // Randomly assign constraints
       const constraints = sampleConstraints();
       setAssignedConstraints(constraints);
     } else {
@@ -586,11 +644,12 @@ const App: React.FC = () => {
     );
   };
 
+  // Model Card with Markdown rendering
   const renderModelCard = (side: 'left' | 'right', data: ModelResponse | undefined, voteState: 'left' | 'right' | null, setVote: (v: 'left' | 'right') => void, colorClass: string, system: 'cupid' | 'baseline') => {
     if (!data) return <div className="animate-pulse h-64 bg-gray-100 rounded-lg flex items-center justify-center"><span className="text-gray-400">Loading...</span></div>;
     const isSelected = voteState === side;
     const label = side === 'left' ? '1' : '2';
-    const borderColor = isSelected ? (colorClass === 'blue' ? 'border-blue-600' : 'border-blue-600') : 'border-gray-200 hover:border-gray-300';
+    const borderColor = isSelected ? 'border-blue-600' : 'border-gray-200 hover:border-gray-300';
     const bgColor = isSelected ? 'bg-blue-50' : 'bg-white';
     const buttonBg = isSelected ? 'bg-blue-600' : 'bg-gray-100';
 
@@ -600,7 +659,14 @@ const App: React.FC = () => {
           <button onClick={(e) => { e.stopPropagation(); setShowModelInfo({ system, side }); }} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium bg-blue-50 px-2 py-1 rounded"><Info size={14} /> View Model Info</button>
           <span className="text-xs text-gray-400">${data.cost.toFixed(5)}</span>
         </div>
-        <div onClick={() => setVote(side)} className="flex-grow cursor-pointer overflow-y-auto h-48 md:h-auto md:max-h-80 text-gray-700 whitespace-pre-wrap font-sans text-sm leading-relaxed">{data.text || <span className="text-gray-400 italic">No response</span>}</div>
+        {/* Markdown rendered content */}
+        <div onClick={() => setVote(side)} className="flex-grow cursor-pointer overflow-y-auto h-48 md:h-auto md:max-h-80">
+          {data.text ? (
+            <Markdown content={data.text} />
+          ) : (
+            <span className="text-gray-400 italic">No response</span>
+          )}
+        </div>
         <div onClick={() => setVote(side)} className={`mt-4 text-center font-bold py-3 rounded-lg cursor-pointer transition ${buttonBg} ${isSelected ? 'text-white' : 'text-gray-400 hover:text-gray-600'}`}>{isSelected ? '✓ PREFERRED' : `Select Output ${label}`}</div>
       </div>
     );
@@ -698,9 +764,7 @@ const App: React.FC = () => {
           {error && <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2"><AlertCircle size={20} />{error}</div>}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left: Demographics & Mode Selection */}
             <div className="space-y-6">
-              {/* Demographics */}
               <div className="bg-white p-6 rounded-2xl shadow-lg">
                 <h2 className="text-xl font-bold mb-4 flex items-center"><User className="mr-2" /> About You</h2>
                 <div className="space-y-4">
@@ -710,7 +774,6 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* Mode Selection */}
               <div className="bg-white p-6 rounded-2xl shadow-lg">
                 <h2 className="text-xl font-bold mb-4">Choose Your Group *</h2>
                 <div className="space-y-3">
@@ -754,7 +817,6 @@ const App: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Expert sub-selection */}
                 {personaGroup === 'expert' && (
                   <div className="mt-4 pt-4 border-t">
                     <label className="block text-sm font-bold text-gray-700 mb-3">Select Your Field of Expertise:</label>
@@ -775,9 +837,7 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* Right: Instructions & Constraints */}
             <div className="space-y-6">
-              {/* Traditional: Show assigned constraints */}
               {personaGroup === 'traditional' && assignedConstraints.length > 0 && (
                 <div className="bg-gradient-to-br from-purple-900 to-indigo-800 text-white p-6 rounded-2xl shadow-xl">
                   <div className="uppercase tracking-widest text-xs font-bold text-purple-300 mb-2">Your Assigned Requirements</div>
@@ -794,7 +854,6 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              {/* Expert: Show instructions */}
               {personaGroup === 'expert' && selectedExpertSubject && (
                 <div className="bg-gradient-to-br from-blue-900 to-indigo-800 text-white p-6 rounded-2xl shadow-xl">
                   <div className="uppercase tracking-widest text-xs font-bold text-blue-300 mb-2">Subject Expert Instructions</div>
@@ -805,7 +864,6 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              {/* Preference: Show instructions */}
               {personaGroup === 'preference' && (
                 <div className="bg-gradient-to-br from-indigo-900 to-purple-800 text-white p-6 rounded-2xl shadow-xl">
                   <div className="uppercase tracking-widest text-xs font-bold text-indigo-300 mb-2">Personal Preference Instructions</div>
@@ -816,7 +874,6 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              {/* General Instructions */}
               <div className="bg-white p-6 rounded-2xl shadow-lg">
                 <h2 className="text-xl font-bold mb-4">How It Works</h2>
                 <div className="space-y-3 text-sm text-gray-600">
@@ -900,7 +957,7 @@ const App: React.FC = () => {
           
           <div className="bg-white p-4 rounded-lg shadow-sm border"><span className="text-xs font-bold text-gray-400 uppercase">Your Query</span><p className="text-gray-800 font-medium mt-1">{prompt}</p></div>
           
-          {/* System A - IDENTICAL UI */}
+          {/* System A */}
           <section>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-blue-600 font-bold text-lg">System A</h2>
@@ -915,7 +972,7 @@ const App: React.FC = () => {
 
           <hr className="border-gray-200" />
 
-          {/* System B - IDENTICAL UI (but feedback does nothing) */}
+          {/* System B */}
           <section>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-blue-600 font-bold text-lg">System B</h2>
@@ -972,7 +1029,7 @@ const App: React.FC = () => {
     );
   }
 
-  // OPEN TESTING PHASE - Max 10 rounds per system
+  // OPEN TESTING PHASE
   if (phase === 'openTesting') {
     const currentSystemRounds = openTestSystem === 'A' ? openTestRoundsA : openTestRoundsB;
     const canChat = currentSystemRounds < OPEN_TESTING_MAX_ROUNDS;
@@ -1009,7 +1066,13 @@ const App: React.FC = () => {
               )}
               {openTestMessages.filter(m => m.system === openTestSystem).map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] p-3 rounded-lg whitespace-pre-wrap ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>{msg.content}</div>
+                  <div className={`max-w-[80%] p-3 rounded-lg ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>
+                    {msg.role === 'assistant' ? (
+                      <Markdown content={msg.content} />
+                    ) : (
+                      <span className="whitespace-pre-wrap">{msg.content}</span>
+                    )}
+                  </div>
                 </div>
               ))}
               {openTestLoading && <div className="flex justify-start"><div className="bg-gray-100 p-3 rounded-lg"><RefreshCw size={16} className="animate-spin" /></div></div>}
