@@ -978,6 +978,59 @@ const App: React.FC = () => {
           {loading && <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center"><div className="flex flex-col items-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div><p className="font-mono text-sm">Getting responses...</p></div></div>}
           {error && <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2"><AlertCircle size={20} />{error}</div>}
 
+          {/* Session Reminder Panel */}
+          <div className="bg-gradient-to-r from-slate-50 to-blue-50 border border-slate-200 rounded-xl p-4">
+            <div className="flex flex-wrap items-start gap-4">
+              {/* Budget Info */}
+              <div className="flex items-center gap-3 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
+                <DollarSign size={18} className="text-green-600" />
+                <div className="text-sm">
+                  <span className="text-gray-500">Budget:</span>
+                  <span className="font-bold text-gray-800 ml-1">${budgetConstraints.maxCost}</span>
+                  <span className="text-gray-400 mx-1">•</span>
+                  <span className="text-gray-500">Rounds:</span>
+                  <span className="font-bold text-gray-800 ml-1">{budgetConstraints.maxRounds}</span>
+                </div>
+              </div>
+
+              {/* Traditional Group - Constraints */}
+              {personaGroup === 'traditional' && assignedConstraints.length > 0 && (
+                <div className="flex-1 min-w-[280px]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Target size={16} className="text-purple-600" />
+                    <span className="text-xs font-bold text-purple-700 uppercase">Your Model Requirements</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {assignedConstraints.map((c, i) => (
+                      <span key={i} className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full font-medium border border-purple-200">
+                        {formatConstraint(c)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Expert Group - Subject */}
+              {personaGroup === 'expert' && selectedExpertSubject && (
+                <div className="flex items-center gap-2 bg-blue-100 px-3 py-2 rounded-lg border border-blue-200">
+                  <BookOpen size={16} className="text-blue-600" />
+                  <div className="text-sm">
+                    <span className="text-blue-700 font-medium">Expert Mode:</span>
+                    <span className="font-bold text-blue-900 ml-1">{EXPERT_SUBJECTS.find(s => s.id === selectedExpertSubject)?.label}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Preference Group */}
+              {personaGroup === 'preference' && (
+                <div className="flex items-center gap-2 bg-indigo-100 px-3 py-2 rounded-lg border border-indigo-200">
+                  <ThumbsUp size={16} className="text-indigo-600" />
+                  <span className="text-sm font-medium text-indigo-800">Personal Preference Mode — Choose based on your own criteria</span>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="bg-white p-4 rounded-lg shadow-sm border"><span className="text-xs font-bold text-gray-400 uppercase">Your Query</span><p className="text-gray-800 font-medium mt-1">{prompt}</p></div>
 
           {/* System A */}
