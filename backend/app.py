@@ -858,10 +858,14 @@ class SessionInfoResponse(BaseModel):
 class SaveSessionRequest(BaseModel):
     demographics: Optional[Dict[str, Any]] = None
     persona: Optional[Dict[str, Any]] = None
+    persona_group: Optional[str] = None  # 'traditional', 'expert', or 'preference'
     budget: Optional[Dict[str, Any]] = None
     history: Optional[List[Dict[str, Any]]] = None
     evaluation: Optional[Dict[str, Any]] = None
     final_cost: Optional[float] = None
+    final_cost_a: Optional[float] = None  # System A total cost
+    final_cost_b: Optional[float] = None  # System B total cost
+    terminated_early: Optional[bool] = None  # True if user clicked "I'm Satisfied"
 
 
 # ================== API Endpoints ==================
@@ -1093,10 +1097,14 @@ async def save_session(session_id: str, request: SaveSessionRequest):
         "saved_at": datetime.now().isoformat(),
         "demographics": request.demographics,
         "persona": request.persona,
+        "persona_group": request.persona_group,
         "budget": request.budget,
         "history": request.history or (state.history if state else []),
         "evaluation": request.evaluation,
         "final_cost": request.final_cost,
+        "final_cost_a": request.final_cost_a,
+        "final_cost_b": request.final_cost_b,
+        "terminated_early": request.terminated_early,
         "backend_history": state.history if state else [],
         "budget_settings": {
             "cost": state.budget_cost if state else None,
