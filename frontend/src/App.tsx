@@ -215,39 +215,53 @@ function sampleBudget(): BudgetConstraints {
 }
 
 // --- CONSTRAINT SETS FOR TRADITIONAL MODE ---
+// Each set narrows down to exactly 1-2 models (text-only attributes)
 const CONSTRAINT_SETS: Constraint[][] = [
+  // Group 1: Only o3 (1 model) - highest intelligence
   [
-    { attribute: 'max_output', operator: '>=', value: 16000, displayName: 'Max Output Tokens', unit: 'tokens' },
-    { attribute: 'output_price', operator: '<=', value: 15, displayName: 'Output Price', unit: '$/1M tokens' },
+    { attribute: 'intelligence', operator: '==', value: 5, displayName: 'Intelligence Rating', unit: '' },
   ],
+  // Group 2: Only GPT-4 (1 model) - premium pricing
   [
-    { attribute: 'intelligence', operator: '>=', value: 60, displayName: 'Intelligence Score' },
-    { attribute: 'context_window', operator: '>=', value: 100000, displayName: 'Context Window', unit: 'tokens' },
+    { attribute: 'input_price', operator: '>=', value: 20, displayName: 'Input Price', unit: '$/1M tokens' },
   ],
+  // Group 3: Only gpt-3.5-turbo-instruct (1 model) - smallest context
   [
-    { attribute: 'speed', operator: '>=', value: 70, displayName: 'Speed Score' },
-    { attribute: 'input_price', operator: '<=', value: 5, displayName: 'Input Price', unit: '$/1M tokens' },
+    { attribute: 'context_window', operator: '<=', value: 4096, displayName: 'Context Window', unit: 'tokens' },
   ],
+  // Group 4: GPT-4.1-nano & GPT-5-nano (2 models) - fastest with decent intelligence
   [
+    { attribute: 'speed', operator: '==', value: 5, displayName: 'Speed Rating', unit: '' },
+    { attribute: 'intelligence', operator: '>=', value: 2, displayName: 'Intelligence Rating', unit: '' },
+  ],
+  // Group 5: GPT-5.1 & GPT-5.2 (2 models) - smart and fast
+  [
+    { attribute: 'intelligence', operator: '>=', value: 4, displayName: 'Intelligence Rating', unit: '' },
+    { attribute: 'speed', operator: '>=', value: 4, displayName: 'Speed Rating', unit: '' },
+  ],
+  // Group 6: Only GPT-5-nano (1 model) - cheapest reasoning model
+  [
+    { attribute: 'input_price', operator: '<=', value: 0.1, displayName: 'Input Price', unit: '$/1M tokens' },
     { attribute: 'reasoning', operator: '==', value: true, displayName: 'Reasoning Capability', unit: '' },
-    { attribute: 'output_price', operator: '<=', value: 40, displayName: 'Output Price', unit: '$/1M tokens' },
   ],
+  // Group 7: Only GPT-4.1 (1 model) - largest context + high intelligence
   [
-    { attribute: 'intelligence', operator: '>=', value: 75, displayName: 'Intelligence Score' },
-    { attribute: 'speed', operator: '>=', value: 50, displayName: 'Speed Score' },
+    { attribute: 'context_window', operator: '>=', value: 1000000, displayName: 'Context Window', unit: 'tokens' },
+    { attribute: 'intelligence', operator: '==', value: 4, displayName: 'Intelligence Rating', unit: '' },
   ],
+  // Group 8: Only GPT-3.5-turbo (1 model) - budget option
   [
-    { attribute: 'max_output', operator: '>=', value: 32000, displayName: 'Max Output Tokens', unit: 'tokens' },
-    { attribute: 'function_calling', operator: '==', value: true, displayName: 'Function Calling', unit: '' },
+    { attribute: 'speed', operator: '==', value: 2, displayName: 'Speed Rating', unit: '' },
+    { attribute: 'input_price', operator: '<=', value: 1, displayName: 'Input Price', unit: '$/1M tokens' },
   ],
+  // Group 9: o4-mini & o3-mini (2 models) - specific output price tier
   [
-    { attribute: 'context_window', operator: '>=', value: 200000, displayName: 'Context Window', unit: 'tokens' },
-    { attribute: 'structured_output', operator: '==', value: true, displayName: 'Structured Output', unit: '' },
+    { attribute: 'output_price', operator: '==', value: 4.4, displayName: 'Output Price', unit: '$/1M tokens' },
   ],
+  // Group 10: Only GPT-5 (1 model) - large context reasoning at moderate speed
   [
-    { attribute: 'input_price', operator: '<=', value: 3, displayName: 'Input Price', unit: '$/1M tokens' },
-    { attribute: 'output_price', operator: '<=', value: 12, displayName: 'Output Price', unit: '$/1M tokens' },
-    { attribute: 'intelligence', operator: '>=', value: 50, displayName: 'Intelligence Score' },
+    { attribute: 'context_window', operator: '==', value: 400000, displayName: 'Context Window', unit: 'tokens' },
+    { attribute: 'speed', operator: '==', value: 3, displayName: 'Speed Rating', unit: '' },
   ],
 ];
 
@@ -258,7 +272,17 @@ function sampleConstraints(): Constraint[] {
 
 function formatConstraint(c: Constraint): string {
   const opMap: Record<string, string> = { '>=': '≥', '<=': '≤', '==': '=', '>': '>' };
-  const valueStr = typeof c.value === 'boolean' ? (c.value ? 'Yes' : 'No') : c.value.toLocaleString();
+  
+  // For boolean constraints, show cleaner format
+  if (typeof c.value === 'boolean') {
+    if (c.value === true) {
+      return `${c.displayName}: Required`;
+    } else {
+      return `${c.displayName}: Not Required`;
+    }
+  }
+  
+  const valueStr = c.value.toLocaleString();
   return `${c.displayName} ${opMap[c.operator]} ${valueStr}${c.unit ? ` ${c.unit}` : ''}`;
 }
 
