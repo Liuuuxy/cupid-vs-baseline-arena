@@ -806,6 +806,9 @@ class InteractRequest(BaseModel):
     budget_cost: Optional[float] = Field(None, description="Maximum cost budget")
     budget_rounds: Optional[int] = Field(None, description="Maximum number of rounds")
     persona_id: Optional[str] = Field(None, description="Assigned persona ID")
+    persona_group: Optional[str] = Field(None, description="Persona group: 'traditional', 'expert', or 'preference'")
+    expert_subject: Optional[str] = Field(None, description="Expert subject for expert group")
+    constraints: Optional[List[Dict[str, Any]]] = Field(None, description="Hard constraints for traditional group")
     demographics: Optional[Dict[str, Any]] = Field(
         None, description="User demographics"
     )
@@ -859,6 +862,8 @@ class SaveSessionRequest(BaseModel):
     demographics: Optional[Dict[str, Any]] = None
     persona: Optional[Dict[str, Any]] = None
     persona_group: Optional[str] = None  # 'traditional', 'expert', or 'preference'
+    expert_subject: Optional[str] = None  # For expert group
+    constraints: Optional[List[Dict[str, Any]]] = None  # For traditional group
     budget: Optional[Dict[str, Any]] = None
     history: Optional[List[Dict[str, Any]]] = None
     evaluation: Optional[Dict[str, Any]] = None
@@ -866,6 +871,8 @@ class SaveSessionRequest(BaseModel):
     final_cost_a: Optional[float] = None  # System A total cost
     final_cost_b: Optional[float] = None  # System B total cost
     terminated_early: Optional[bool] = None  # True if user clicked "I'm Satisfied"
+    open_test_rounds_a: Optional[int] = None  # Open testing rounds for System A
+    open_test_rounds_b: Optional[int] = None  # Open testing rounds for System B
 
 
 # ================== API Endpoints ==================
@@ -1098,6 +1105,8 @@ async def save_session(session_id: str, request: SaveSessionRequest):
         "demographics": request.demographics,
         "persona": request.persona,
         "persona_group": request.persona_group,
+        "expert_subject": request.expert_subject,
+        "constraints": request.constraints,
         "budget": request.budget,
         "history": request.history or (state.history if state else []),
         "evaluation": request.evaluation,
@@ -1105,6 +1114,8 @@ async def save_session(session_id: str, request: SaveSessionRequest):
         "final_cost_a": request.final_cost_a,
         "final_cost_b": request.final_cost_b,
         "terminated_early": request.terminated_early,
+        "open_test_rounds_a": request.open_test_rounds_a,
+        "open_test_rounds_b": request.open_test_rounds_b,
         "backend_history": state.history if state else [],
         "budget_settings": {
             "cost": state.budget_cost if state else None,
