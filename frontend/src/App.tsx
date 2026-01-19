@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import {
   ArrowRight, MessageSquare, User, CheckCircle,
@@ -312,6 +312,10 @@ const App: React.FC = () => {
   const [evalRatingB, setEvalRatingB] = useState<number>(0);
   const [evalComment, setEvalComment] = useState<string>('');
   const [finished, setFinished] = useState<boolean>(false);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [phase, arenaState?.round, init]);
 
   const fetchNextRound = useCallback(async (isFirst: boolean = false, currentPrompt?: string) => {
     setLoading(true);
@@ -692,8 +696,8 @@ const App: React.FC = () => {
               key={item.value}
               onClick={() => setRating(item.value)}
               className={`w-full p-3 rounded-lg text-left transition-all flex items-center gap-3 ${rating === item.value
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white border border-gray-200 hover:border-gray-300 text-gray-700'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white border border-gray-200 hover:border-gray-300 text-gray-700'
                 }`}
             >
               <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${rating === item.value ? 'bg-white/20' : 'bg-gray-100'
