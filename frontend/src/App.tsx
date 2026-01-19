@@ -14,70 +14,86 @@ import 'katex/dist/katex.min.css';
 const API_URL = 'https://cupid-vs-baseline-arena.onrender.com';
 
 // --- MARKDOWN COMPONENT WITH STYLING ---
-const Markdown: React.FC<{ content: string; className?: string }> = ({ content, className = '' }) => (
-  <ReactMarkdown
-    className={`prose prose-sm max-w-none ${className}`}
-    remarkPlugins={[remarkMath, remarkGfm]} // Adds Math and Table parsing
-    rehypePlugins={[rehypeKatex]}
-    components={{
-      // Headers
-      h1: ({ children }) => <h1 className="text-xl font-bold mt-4 mb-2 text-gray-900">{children}</h1>,
-      h2: ({ children }) => <h2 className="text-lg font-bold mt-3 mb-2 text-gray-900">{children}</h2>,
-      h3: ({ children }) => <h3 className="text-base font-bold mt-2 mb-1 text-gray-900">{children}</h3>,
-      h4: ({ children }) => <h4 className="text-sm font-bold mt-2 mb-1 text-gray-800">{children}</h4>,
-      // Paragraphs
-      p: ({ children }) => <p className="mb-2 text-gray-700 leading-relaxed">{children}</p>,
-      // Lists
-      ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1 text-gray-700">{children}</ul>,
-      ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1 text-gray-700">{children}</ol>,
-      li: ({ children }) => <li className="text-gray-700">{children}</li>,
-      // Code
-      code: ({ className, children, ...props }) => {
-        const isInline = !className;
-        if (isInline) {
-          return <code className="bg-gray-100 text-pink-600 px-1 py-0.5 rounded text-xs font-mono" {...props}>{children}</code>;
-        }
-        return (
-          <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-xs font-mono overflow-x-auto my-2" {...props}>
+const Markdown: React.FC<{ content: string; className?: string }> = ({ content, className = '' }) => {
+  // FIX: Pre-process the content to convert OpenAI's LaTeX style (\[ ... \]) 
+  // to the format remark-math expects ($$ ... $$)
+  const preprocessContent = (text: string) => {
+    if (!text) return '';
+    return text
+      // Replace block math \[ ... \] with $$ ... $$
+      .replace(/\\\[/g, '$$')
+      .replace(/\\\]/g, '$$')
+      // Replace inline math \( ... \) with $ ... $
+      .replace(/\\\(/g, '$')
+      .replace(/\\\)/g, '$');
+  };
+
+  return (
+    <ReactMarkdown
+      className={`prose prose-sm max-w-none ${className}`}
+      remarkPlugins={[remarkMath, remarkGfm]}
+      rehypePlugins={[rehypeKatex]}
+      components={{
+        // ... (Keep all your existing custom components: h1, h2, code, table, etc.) ...
+        // Headers
+        h1: ({ children }) => <h1 className="text-xl font-bold mt-4 mb-2 text-gray-900">{children}</h1>,
+        h2: ({ children }) => <h2 className="text-lg font-bold mt-3 mb-2 text-gray-900">{children}</h2>,
+        h3: ({ children }) => <h3 className="text-base font-bold mt-2 mb-1 text-gray-900">{children}</h3>,
+        h4: ({ children }) => <h4 className="text-sm font-bold mt-2 mb-1 text-gray-800">{children}</h4>,
+        // Paragraphs
+        p: ({ children }) => <p className="mb-2 text-gray-700 leading-relaxed">{children}</p>,
+        // Lists
+        ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1 text-gray-700">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1 text-gray-700">{children}</ol>,
+        li: ({ children }) => <li className="text-gray-700">{children}</li>,
+        // Code
+        code: ({ className, children, ...props }) => {
+          const isInline = !className;
+          if (isInline) {
+            return <code className="bg-gray-100 text-pink-600 px-1 py-0.5 rounded text-xs font-mono" {...props}>{children}</code>;
+          }
+          return (
+            <code className="block bg-gray-900 text-green-400 p-3 rounded-lg text-xs font-mono overflow-x-auto my-2" {...props}>
+              {children}
+            </code>
+          );
+        },
+        pre: ({ children }) => <pre className="bg-gray-900 rounded-lg overflow-x-auto my-2">{children}</pre>,
+        // Blockquote
+        blockquote: ({ children }) => (
+          <blockquote className="border-l-4 border-blue-400 pl-4 py-1 my-2 bg-blue-50 text-gray-700 italic">
             {children}
-          </code>
-        );
-      },
-      pre: ({ children }) => <pre className="bg-gray-900 rounded-lg overflow-x-auto my-2">{children}</pre>,
-      // Blockquote
-      blockquote: ({ children }) => (
-        <blockquote className="border-l-4 border-blue-400 pl-4 py-1 my-2 bg-blue-50 text-gray-700 italic">
-          {children}
-        </blockquote>
-      ),
-      // Links
-      a: ({ href, children }) => (
-        <a href={href} className="text-blue-600 hover:text-blue-800 underline" target="_blank" rel="noopener noreferrer">
-          {children}
-        </a>
-      ),
-      // Strong/Bold
-      strong: ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
-      // Emphasis/Italic
-      em: ({ children }) => <em className="italic">{children}</em>,
-      // Horizontal Rule
-      hr: () => <hr className="my-4 border-gray-300" />,
-      // Tables
-      table: ({ children }) => (
-        <div className="overflow-x-auto my-2">
-          <table className="min-w-full border border-gray-300 text-sm">{children}</table>
-        </div>
-      ),
-      thead: ({ children }) => <thead className="bg-gray-100">{children}</thead>,
-      tbody: ({ children }) => <tbody>{children}</tbody>,
-      tr: ({ children }) => <tr className="border-b border-gray-200">{children}</tr>,
-      th: ({ children }) => <th className="px-3 py-2 text-left font-bold text-gray-700 border-r border-gray-200">{children}</th>,
-      td: ({ children }) => <td className="px-3 py-2 text-gray-700 border-r border-gray-200">{children}</td>,
-    }}
-  >
-    {content}
-  </ReactMarkdown>
-);
+          </blockquote>
+        ),
+        // Links
+        a: ({ href, children }) => (
+          <a href={href} className="text-blue-600 hover:text-blue-800 underline" target="_blank" rel="noopener noreferrer">
+            {children}
+          </a>
+        ),
+        // Strong/Bold
+        strong: ({ children }) => <strong className="font-bold text-gray-900">{children}</strong>,
+        // Emphasis/Italic
+        em: ({ children }) => <em className="italic">{children}</em>,
+        // Horizontal Rule
+        hr: () => <hr className="my-4 border-gray-300" />,
+        // Tables
+        table: ({ children }) => (
+          <div className="overflow-x-auto my-2">
+            <table className="min-w-full border border-gray-300 text-sm">{children}</table>
+          </div>
+        ),
+        thead: ({ children }) => <thead className="bg-gray-100">{children}</thead>,
+        tbody: ({ children }) => <tbody>{children}</tbody>,
+        tr: ({ children }) => <tr className="border-b border-gray-200">{children}</tr>,
+        th: ({ children }) => <th className="px-3 py-2 text-left font-bold text-gray-700 border-r border-gray-200">{children}</th>,
+        td: ({ children }) => <td className="px-3 py-2 text-gray-700 border-r border-gray-200">{children}</td>,
+      }}
+    >
+      {preprocessContent(content)}
+    </ReactMarkdown>
+  );
+};
 
 // --- TYPES ---
 type Phase = 'consent' | 'calibration' | 'interaction' | 'openTesting' | 'evaluation';
