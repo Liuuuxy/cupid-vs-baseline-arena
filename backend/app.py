@@ -85,20 +85,20 @@ def _load_model_pool() -> pd.DataFrame:
     return df
 
 
-df = _load_model_pool()
+MODEL_POOL = _load_model_pool()
 
-if "id" not in df.columns:
+if "id" not in MODEL_POOL.columns:
     raise RuntimeError("model-pool.csv must contain an 'id' column.")
-if "model-id" not in df.columns:
+if "model-id" not in MODEL_POOL.columns:
     raise RuntimeError("model-pool.csv must contain a 'model-id' column.")
 
-num_models = df.shape[0]
+num_models = MODEL_POOL.shape[0]
 MODEL_IDS: List[int] = list(range(1, num_models + 1))
 
 
 def _model_name_from_id(model_id: int) -> str:
     """Lookup OpenRouter model name from our CSV 'id'."""
-    row = df.loc[df["id"] == int(model_id)]
+    row = MODEL_POOL.loc[MODEL_POOL["id"] == int(model_id)]
     if row.empty:
         raise ValueError(f"No row in model pool with id={model_id}")
     return str(row["model-id"].iloc[0])
@@ -106,7 +106,7 @@ def _model_name_from_id(model_id: int) -> str:
 
 def _model_display_name_from_id(model_id: int) -> str:
     """Get display name for a model."""
-    row = df.loc[df["id"] == int(model_id)]
+    row = MODEL_POOL.loc[MODEL_POOL["id"] == int(model_id)]
     if row.empty:
         return f"Model {model_id}"
     if "model" in row.columns:
@@ -122,10 +122,35 @@ def _id_to_index(model_id: int) -> int:
     return idx
 
 
+def _get_model_pricing(model_id: int) -> Tuple[float, float]:
+    """Get input and output price per 1M tokens for a model."""
+    try:
+        row = MODEL_POOL[MODEL_POOL["id"] == model_id].iloc[0]
+        input_price = float(row.get("input-price", 0) or 0)
+        output_price = float(row.get("output-price", 0) or 0)
+        return input_price, output_price
+    except (IndexError, KeyError):
+        return 0.0, 0.0
+
+
 # ================== OpenRouter API Calls ==================
 def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
     """Generate response from a specific model via OpenRouter."""
     model_name = _model_name_from_id(model_id)
+
+    # Mock response for testing without API key
+    if not OPENROUTER_API_KEY:
+        # Estimate mock cost based on model pricing
+        input_price, output_price = _get_model_pricing(model_id)
+        mock_prompt_tokens = int(len(prompt.split()) * 1.3) + 30
+        mock_completion_tokens = 150
+        mock_cost = (mock_prompt_tokens * input_price / 1_000_000) + (mock_completion_tokens * output_price / 1_000_000)
+        return {
+            "text": f"[Mock response from {_model_display_name_from_id(model_id)}] This is a simulated response for testing. Your query was about: {prompt[:100]}...",
+            "cost": mock_cost,
+            "prompt_tokens": mock_prompt_tokens,
+            "completion_tokens": mock_completion_tokens,
+        }
 
     system_content = "You are a helpful AI assistant. Answer the user's question concisely and accurately."
 
@@ -135,6 +160,9 @@ def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
             {"role": "system", "content": system_content},
             {"role": "user", "content": prompt},
         ],
+        "usage": {
+            "include": True  # Enable usage accounting to get cost data
+        }
     }
 
     try:
@@ -152,13 +180,25 @@ def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
             msg = data["choices"][0].get("message", {})
             text = msg.get("content", "")
 
-        cost = float(data.get("usage", {}).get("cost", 0.0) or 0.0)
+        # Get usage data from response (enabled by usage.include: true)
+        usage = data.get("usage", {})
+        prompt_tokens = int(usage.get("prompt_tokens", 0) or 0)
+        completion_tokens = int(usage.get("completion_tokens", 0) or 0)
+        cost = float(usage.get("cost", 0) or 0)
 
-        return {"text": text, "cost": cost, "raw": data}
+        return {
+            "text": text, 
+            "cost": cost, 
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "raw": data
+        }
     except Exception as e:
         return {
             "text": f"[Error calling model: {str(e)}]",
             "cost": 0.0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
             "error": str(e),
         }
 
@@ -472,7 +512,7 @@ class CUPIDState:
         # Build cost vector
         arm_cost_list = []
         for mid in self.arms:
-            row = df.loc[df["id"] == int(mid)]
+            row = MODEL_POOL.loc[MODEL_POOL["id"] == int(mid)]
             if row.empty:
                 arm_cost_list.append(0.0)
                 continue
@@ -702,7 +742,7 @@ class SessionState:
 def get_model_stats(model_id: int) -> Optional[ModelStats]:
     """Get model statistics from the CSV (without revealing the name)."""
     try:
-        row = df.loc[df["id"] == int(model_id)]
+        row = MODEL_POOL.loc[MODEL_POOL["id"] == int(model_id)]
         if row.empty:
             return None
         row = row.iloc[0]
@@ -903,7 +943,7 @@ async def health_check():
 async def list_models():
     """List all available models in the pool."""
     models = []
-    for _, row in df.iterrows():
+    for _, row in MODEL_POOL.iterrows():
         models.append(
             {
                 "id": int(row["id"]),

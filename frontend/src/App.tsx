@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import {
-  ArrowRight, MessageSquare, User, CheckCircle,
+  ArrowRight, ArrowLeft, MessageSquare, User, CheckCircle,
   Star, DollarSign, Zap, Brain, X, Info, RefreshCw,
   AlertCircle, Download, Send, MessageCircle, Target, Sparkles,
   BookOpen, Heart, ThumbsUp, Settings, HelpCircle
@@ -193,25 +193,20 @@ const RATING_LABELS = [
   { value: 5, label: "Aligns very well / Goes beyond expectations", shortLabel: "Excellent" }
 ];
 
-// --- BUDGET PROBABILITY DISTRIBUTION ---
-const BUDGET_DISTRIBUTION = [
-  { maxRounds: 5, maxCost: 0.5, probability: 0.2 },
-  { maxRounds: 8, maxCost: 0.8, probability: 0.3 },
-  { maxRounds: 10, maxCost: 1.0, probability: 0.3 },
-  { maxRounds: 15, maxCost: 1.5, probability: 0.15 },
-  { maxRounds: 20, maxCost: 2.0, probability: 0.05 }
-];
-
+// --- BUDGET RANDOM RANGE ---
+// Cost: 0.5 to 1.5, Rounds: 5 to 15 (randomly selected)
 function sampleBudget(): BudgetConstraints {
-  const rand = Math.random();
-  let cumulative = 0;
-  for (const bucket of BUDGET_DISTRIBUTION) {
-    cumulative += bucket.probability;
-    if (rand <= cumulative) {
-      return { maxRounds: bucket.maxRounds, maxCost: bucket.maxCost };
-    }
-  }
-  return { maxRounds: 10, maxCost: 1.0 };
+  const minCost = 0.5;
+  const maxCost = 1.5;
+  const minRounds = 5;
+  const maxRounds = 15;
+  
+  // Random cost between 0.5 and 1.5 (rounded to 2 decimal places)
+  const randomCost = Math.round((minCost + Math.random() * (maxCost - minCost)) * 100) / 100;
+  // Random rounds between 5 and 15 (integer)
+  const randomRounds = Math.floor(minRounds + Math.random() * (maxRounds - minRounds + 1));
+  
+  return { maxRounds: randomRounds, maxCost: randomCost };
 }
 
 // --- CONSTRAINT SETS FOR TRADITIONAL MODE ---
@@ -347,6 +342,16 @@ const App: React.FC = () => {
   const [openTestLoading, setOpenTestLoading] = useState<boolean>(false);
   const [openTestRoundsA, setOpenTestRoundsA] = useState<number>(0);
   const [openTestRoundsB, setOpenTestRoundsB] = useState<number>(0);
+  
+  // Side-by-side comparison state for open testing
+  interface SideBySideRound {
+    prompt: string;
+    responseA: string;
+    responseB: string;
+    costA: number;
+    costB: number;
+  }
+  const [sideBySideRounds, setSideBySideRounds] = useState<SideBySideRound[]>([]);
 
   const [evalRatingA, setEvalRatingA] = useState<number>(0);
   const [evalRatingB, setEvalRatingB] = useState<number>(0);
@@ -507,6 +512,79 @@ const App: React.FC = () => {
         system: openTestSystem
       };
       setOpenTestMessages(prev => [...prev, assistantMsg]);
+    } finally {
+      setOpenTestLoading(false);
+    }
+  };
+
+  // Send to BOTH systems for side-by-side comparison
+  const sendSideBySideMessage = async () => {
+    if (!openTestInput.trim() || openTestLoading) return;
+    
+    const totalRounds = sideBySideRounds.length;
+    if (totalRounds >= OPEN_TESTING_MAX_ROUNDS) {
+      setError(`Maximum of ${OPEN_TESTING_MAX_ROUNDS} comparison rounds reached.`);
+      return;
+    }
+
+    const currentPrompt = openTestInput;
+    setOpenTestInput('');
+    setOpenTestLoading(true);
+    setError(null);
+
+    try {
+      // Send to both systems in parallel
+      const [responseA, responseB] = await Promise.all([
+        fetch(`${API_URL}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: sessionId,
+            message: currentPrompt,
+            system: 'cupid'
+          }),
+        }),
+        fetch(`${API_URL}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: sessionId,
+            message: currentPrompt,
+            system: 'baseline'
+          }),
+        })
+      ]);
+
+      let textA = '[Connection error]';
+      let textB = '[Connection error]';
+      let costA = 0;
+      let costB = 0;
+
+      if (responseA.ok) {
+        const dataA = await responseA.json();
+        textA = dataA.response || 'No response received';
+        costA = dataA.cost || 0;
+      }
+      if (responseB.ok) {
+        const dataB = await responseB.json();
+        textB = dataB.response || 'No response received';
+        costB = dataB.cost || 0;
+      }
+
+      setSideBySideRounds(prev => [...prev, {
+        prompt: currentPrompt,
+        responseA: textA,
+        responseB: textB,
+        costA,
+        costB
+      }]);
+
+      setOpenTestRoundsA(prev => prev + 1);
+      setOpenTestRoundsB(prev => prev + 1);
+
+    } catch (e) {
+      console.error('Chat error:', e);
+      setError('Connection error. Please try again.');
     } finally {
       setOpenTestLoading(false);
     }
@@ -701,22 +779,78 @@ const App: React.FC = () => {
     const borderColor = isSelected ? 'border-blue-600' : 'border-gray-200 hover:border-gray-300';
     const bgColor = isSelected ? 'bg-blue-50' : 'bg-white';
     const buttonBg = isSelected ? 'bg-blue-600' : 'bg-gray-100';
+    const stats = getModelStats(system, side);
 
     return (
-      <div className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col md:h-full min-h-[300px] ${borderColor} ${bgColor} ${isSelected ? 'shadow-lg scale-[1.01]' : ''}`}>
+      <div className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col ${borderColor} ${bgColor} ${isSelected ? 'shadow-lg scale-[1.01]' : ''}`}>
         <div className="flex justify-between items-center mb-2">
-          <button onClick={(e) => { e.stopPropagation(); setShowModelInfo({ system, side }); }} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium bg-blue-50 px-2 py-1 rounded"><Info size={14} /> View Model Info</button>
-          <span className="text-xs text-gray-400">${data.cost.toFixed(5)}</span>
+          <span className="text-xs font-bold text-gray-500">Output {label}</span>
+          {/* Cost with explanation tooltip */}
+          <div className="group relative">
+            <span className="text-xs text-gray-400 cursor-help flex items-center gap-1">
+              <DollarSign size={12} />
+              {data.cost.toFixed(5)}
+              <Info size={10} className="text-gray-300" />
+            </span>
+            <div className="absolute right-0 top-full mt-1 w-48 bg-gray-800 text-white text-xs rounded-lg p-2 hidden group-hover:block z-10 shadow-lg">
+              Cost for this response based on input/output tokens and model pricing (per 1M tokens).
+            </div>
+          </div>
         </div>
+        
         {/* Markdown rendered content */}
-        <div onClick={() => setVote(side)} className="flex-grow cursor-pointer overflow-y-auto h-48 md:h-auto md:max-h-80">
+        <div onClick={() => setVote(side)} className="flex-grow cursor-pointer overflow-y-auto h-48 md:h-auto md:max-h-64 mb-3">
           {data.text ? (
             <Markdown content={data.text} />
           ) : (
             <span className="text-gray-400 italic">No response</span>
           )}
         </div>
-        <div onClick={() => setVote(side)} className={`mt-4 text-center font-bold py-3 rounded-lg cursor-pointer transition ${buttonBg} ${isSelected ? 'text-white' : 'text-gray-400 hover:text-gray-600'}`}>{isSelected ? '✓ PREFERRED' : `Select Output ${label}`}</div>
+
+        {/* Model Info - Expanded by default for Traditional Group */}
+        {personaGroup === 'traditional' && stats && (
+          <div className="border-t pt-3 mt-2">
+            <div className="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1">
+              <Info size={12} /> Model Specifications
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-purple-50 p-2 rounded">
+                <span className="text-gray-500">Intelligence:</span>
+                <span className="font-bold text-purple-700 ml-1">{stats.intelligence || '—'}</span>
+              </div>
+              <div className="bg-blue-50 p-2 rounded">
+                <span className="text-gray-500">Speed:</span>
+                <span className="font-bold text-blue-700 ml-1">{stats.speed || '—'}</span>
+              </div>
+              <div className="bg-indigo-50 p-2 rounded">
+                <span className="text-gray-500">Reasoning:</span>
+                <span className="font-bold text-indigo-700 ml-1">{stats.reasoning ? 'Yes' : 'No'}</span>
+              </div>
+              <div className="bg-green-50 p-2 rounded">
+                <span className="text-gray-500">Input:</span>
+                <span className="font-bold text-green-700 ml-1">${stats.input_price}/1M</span>
+              </div>
+              <div className="bg-green-50 p-2 rounded">
+                <span className="text-gray-500">Output:</span>
+                <span className="font-bold text-green-700 ml-1">${stats.output_price}/1M</span>
+              </div>
+              <div className="bg-orange-50 p-2 rounded">
+                <span className="text-gray-500">Context:</span>
+                <span className="font-bold text-orange-700 ml-1">{stats.context_window?.toLocaleString() || '—'}</span>
+              </div>
+              <div className="bg-orange-50 p-2 rounded">
+                <span className="text-gray-500">Max Output:</span>
+                <span className="font-bold text-orange-700 ml-1">{stats.max_output?.toLocaleString() || '—'}</span>
+              </div>
+              <div className="bg-gray-50 p-2 rounded">
+                <span className="text-gray-500">Func Call:</span>
+                <span className="font-bold text-gray-700 ml-1">{stats.function_calling ? 'Yes' : 'No'}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div onClick={() => setVote(side)} className={`mt-3 text-center font-bold py-3 rounded-lg cursor-pointer transition ${buttonBg} ${isSelected ? 'text-white' : 'text-gray-400 hover:text-gray-600'}`}>{isSelected ? '✓ PREFERRED' : `Select Output ${label}`}</div>
       </div>
     );
   };
@@ -760,6 +894,7 @@ const App: React.FC = () => {
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 md:p-8 text-white text-center">
             <h1 className="text-2xl md:text-3xl font-bold">LLM Matchmaking Study</h1>
             <p className="opacity-90">Find Your Dream Model</p>
+            <p className="text-xs mt-2 opacity-75">IRB ID: STUDY00023557</p>
           </div>
           <div className="p-6 md:p-8 overflow-y-auto max-h-[60vh] prose prose-sm max-w-none text-gray-700">
             <p>Thank you for participating in this study. In this experiment, you will help us compare two systems by interacting with both and providing your preferences. Your feedback will help us improve LLM matchmaking systems and how they are presented to users.</p>
@@ -907,7 +1042,10 @@ const App: React.FC = () => {
                   <p className="text-blue-100 text-sm mb-4">
                     You will play the role of a <strong>{EXPERT_SUBJECTS.find(s => s.id === selectedExpertSubject)?.label}</strong> expert/student seeking assistance from LLM, but you are yet to know which model is good for your field.
                   </p>
-                  <p className="text-blue-200 text-sm">Focus on the <strong>quality</strong> and the <strong>cost</strong> of the outputs. Choose the output that best demonstrates domain knowledge and accuracy.</p>
+                  <p className="text-blue-200 text-sm mb-3">Focus on the <strong>quality</strong> and the <strong>cost</strong> of the outputs. Choose the output that best demonstrates domain knowledge and accuracy.</p>
+                  <div className="bg-yellow-500/20 border border-yellow-400/30 rounded-lg p-3 mt-3">
+                    <p className="text-yellow-200 text-sm font-medium">💡 <strong>Tip:</strong> Ask hard, challenging, or technical questions in your field to properly test each model's capabilities. This will help you distinguish which model is truly better for your domain.</p>
+                  </div>
                 </div>
               )}
 
@@ -1002,6 +1140,12 @@ const App: React.FC = () => {
           {loading && <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center"><div className="flex flex-col items-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div><p className="font-mono text-sm">Getting responses...</p></div></div>}
           {error && <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2"><AlertCircle size={20} />{error}</div>}
 
+          {/* No Chat History Reminder */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2">
+            <AlertCircle size={16} className="text-amber-600 flex-shrink-0" />
+            <p className="text-sm text-amber-800"><strong>Note:</strong> There is no chat history. Each round is a one-time session — the models do not remember previous queries.</p>
+          </div>
+
           {/* Session Reminder Panel */}
           <div className="bg-gradient-to-r from-slate-50 to-blue-50 border border-slate-200 rounded-xl p-4">
             <div className="flex flex-wrap items-start gap-4">
@@ -1054,6 +1198,16 @@ const App: React.FC = () => {
               )}
             </div>
           </div>
+
+          {/* Traditional Group: Review Model Info Instruction */}
+          {personaGroup === 'traditional' && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <p className="text-sm text-purple-800">
+                <strong>📋 Important:</strong> Review the <strong>Model Information</strong> shown below each response to check if it meets your requirements. 
+                Use the feedback fields to guide both systems toward models that satisfy your constraints.
+              </p>
+            </div>
+          )}
 
           <div className="bg-white p-4 rounded-lg shadow-sm border"><span className="text-xs font-bold text-gray-400 uppercase">Your Query</span><p className="text-gray-800 font-medium mt-1">{prompt}</p></div>
 
@@ -1129,70 +1283,136 @@ const App: React.FC = () => {
     );
   }
 
-  // OPEN TESTING PHASE
+  // OPEN TESTING PHASE - Side-by-side comparison
   if (phase === 'openTesting') {
-    const currentSystemRounds = openTestSystem === 'A' ? openTestRoundsA : openTestRoundsB;
-    const canChat = currentSystemRounds < OPEN_TESTING_MAX_ROUNDS;
+    const canChat = sideBySideRounds.length < OPEN_TESTING_MAX_ROUNDS;
 
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <header className="bg-white border-b p-4">
-          <div className="max-w-4xl mx-auto flex items-center justify-between">
-            <div><h1 className="text-xl font-bold">Play with Your Chosen Models</h1><p className="text-sm text-gray-500">Test both models freely (up to {OPEN_TESTING_MAX_ROUNDS} rounds each)</p></div>
-            <button onClick={() => setPhase('evaluation')} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700">I'm Done → Rate Systems</button>
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold">Compare Both Models Side-by-Side</h1>
+              <p className="text-sm text-gray-500">Test both models with the same prompt (up to {OPEN_TESTING_MAX_ROUNDS} rounds)</p>
+            </div>
+            <button onClick={() => setPhase('evaluation')} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700">
+              I'm Done → Rate Systems
+            </button>
           </div>
         </header>
-        <main className="flex-grow max-w-4xl mx-auto w-full p-4 flex flex-col">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4"><p className="text-sm text-yellow-800"><strong>Take your time!</strong> Play with both models to help inform your final rating. Click "I'm Done" when ready.</p></div>
-
-          {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">{error}</div>}
-
-          <div className="flex gap-2 mb-4">
-            <button onClick={() => { setOpenTestSystem('A'); setError(null); }} className={`flex-1 py-3 rounded-lg font-bold transition ${openTestSystem === 'A' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              System A ({openTestRoundsA}/{OPEN_TESTING_MAX_ROUNDS})
-            </button>
-            <button onClick={() => { setOpenTestSystem('B'); setError(null); }} className={`flex-1 py-3 rounded-lg font-bold transition ${openTestSystem === 'B' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              System B ({openTestRoundsB}/{OPEN_TESTING_MAX_ROUNDS})
-            </button>
+        
+        <main className="flex-grow max-w-7xl mx-auto w-full p-4 flex flex-col gap-4">
+          {/* Instructions */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <p className="text-sm text-yellow-800">
+              <strong>Focus on the quality of output.</strong> Send the same prompt to both models and compare their responses side by side. 
+              This will help you determine which model better suits your needs.
+            </p>
           </div>
 
-          <div className="flex-grow bg-white rounded-xl border overflow-hidden flex flex-col min-h-[400px]">
-            <div className="flex-grow overflow-y-auto p-4 space-y-4">
-              {openTestMessages.filter(m => m.system === openTestSystem).length === 0 && (
-                <div className="text-center text-gray-400 py-12">
-                  <p className="text-lg mb-2">Chat with System {openTestSystem}'s model</p>
-                  <p className="text-sm">Ask any questions to test</p>
+          {/* Group-specific reminder */}
+          {personaGroup === 'expert' && selectedExpertSubject && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-800">
+                <strong>Reminder:</strong> You are evaluating as a <strong>{EXPERT_SUBJECTS.find(s => s.id === selectedExpertSubject)?.label}</strong> expert. 
+                Ask technical questions in your field to test model capabilities.
+              </p>
+            </div>
+          )}
+
+          {personaGroup === 'preference' && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+              <p className="text-sm text-indigo-800">
+                <strong>Reminder:</strong> You are in Personal Preference mode. Choose based on whatever criteria matters most to you.
+              </p>
+            </div>
+          )}
+
+          {personaGroup === 'traditional' && assignedConstraints.length > 0 && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+              <p className="text-sm text-purple-800">
+                <strong>Reminder - Your Requirements:</strong> {assignedConstraints.map(c => formatConstraint(c)).join(' • ')}
+              </p>
+            </div>
+          )}
+
+          {error && <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">{error}</div>}
+
+          {/* Round counter */}
+          <div className="text-center text-sm text-gray-500">
+            Rounds: {sideBySideRounds.length} / {OPEN_TESTING_MAX_ROUNDS}
+          </div>
+
+          {/* Side-by-side comparison rounds */}
+          <div className="flex-grow overflow-y-auto space-y-6">
+            {sideBySideRounds.length === 0 && !openTestLoading && (
+              <div className="text-center text-gray-400 py-12 bg-white rounded-xl border">
+                <p className="text-lg mb-2">Enter a prompt to compare both models</p>
+                <p className="text-sm">Your prompt will be sent to both System A and System B simultaneously</p>
+              </div>
+            )}
+
+            {sideBySideRounds.map((round, i) => (
+              <div key={i} className="bg-white rounded-xl border overflow-hidden">
+                {/* Prompt */}
+                <div className="bg-gray-100 p-4 border-b">
+                  <span className="text-xs font-bold text-gray-500 uppercase">Your Prompt (Round {i + 1})</span>
+                  <p className="text-gray-800 mt-1">{round.prompt}</p>
                 </div>
-              )}
-              {openTestMessages.filter(m => m.system === openTestSystem).map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] p-3 rounded-lg ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>
-                    {msg.role === 'assistant' ? (
-                      <Markdown content={msg.content} />
-                    ) : (
-                      <span className="whitespace-pre-wrap">{msg.content}</span>
-                    )}
+                
+                {/* Side-by-side responses */}
+                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x">
+                  {/* System A Response */}
+                  <div className="p-4">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="font-bold text-blue-600">System A</span>
+                      <span className="text-xs text-gray-400">${round.costA.toFixed(5)}</span>
+                    </div>
+                    <div className="prose prose-sm max-w-none">
+                      <Markdown content={round.responseA} />
+                    </div>
+                  </div>
+                  
+                  {/* System B Response */}
+                  <div className="p-4">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="font-bold text-blue-600">System B</span>
+                      <span className="text-xs text-gray-400">${round.costB.toFixed(5)}</span>
+                    </div>
+                    <div className="prose prose-sm max-w-none">
+                      <Markdown content={round.responseB} />
+                    </div>
                   </div>
                 </div>
-              ))}
-              {openTestLoading && <div className="flex justify-start"><div className="bg-gray-100 p-3 rounded-lg"><RefreshCw size={16} className="animate-spin" /></div></div>}
-            </div>
-            <div className="border-t p-4 flex gap-2">
+              </div>
+            ))}
+
+            {openTestLoading && (
+              <div className="bg-white rounded-xl border p-8 text-center">
+                <RefreshCw size={24} className="animate-spin mx-auto text-blue-600 mb-2" />
+                <p className="text-gray-500 text-sm">Getting responses from both models...</p>
+              </div>
+            )}
+          </div>
+
+          {/* Input area */}
+          <div className="bg-white rounded-xl border p-4 sticky bottom-4">
+            <div className="flex gap-2">
               <input
                 type="text"
-                className="flex-grow border rounded-lg px-4 py-2"
-                placeholder={canChat ? `Ask System ${openTestSystem}'s model...` : `Max ${OPEN_TESTING_MAX_ROUNDS} rounds reached`}
+                className="flex-grow border rounded-lg px-4 py-3"
+                placeholder={canChat ? "Enter your prompt (will be sent to both models)..." : `Maximum ${OPEN_TESTING_MAX_ROUNDS} rounds reached`}
                 value={openTestInput}
                 onChange={(e) => setOpenTestInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && canChat && sendOpenTestMessage()}
-                disabled={!canChat}
+                onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && canChat && sendSideBySideMessage()}
+                disabled={!canChat || openTestLoading}
               />
               <button
-                onClick={sendOpenTestMessage}
+                onClick={sendSideBySideMessage}
                 disabled={openTestLoading || !openTestInput.trim() || !canChat}
-                className="px-4 py-2 rounded-lg font-bold bg-blue-600 text-white disabled:opacity-50"
+                className="px-6 py-3 rounded-lg font-bold bg-blue-600 text-white disabled:opacity-50 flex items-center gap-2"
               >
-                <Send size={18} />
+                <Send size={18} /> Compare
               </button>
             </div>
           </div>
@@ -1250,28 +1470,144 @@ const App: React.FC = () => {
     const systemACost = (arenaState?.cupid_cost || 0) + (arenaState?.routing_cost || 0);
     const systemBCost = arenaState?.baseline_cost || 0;
 
+    // Get final model stats for traditional group
+    const finalCupidStats = arenaState?.cupid_pair?.left_stats || arenaState?.cupid_pair?.right_stats || null;
+    const finalBaselineStats = arenaState?.baseline_pair?.left_stats || arenaState?.baseline_pair?.right_stats || null;
+
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="max-w-4xl w-full bg-white shadow-xl rounded-2xl overflow-hidden">
-          <div className="bg-blue-600 p-6 text-white text-center">
+        <div className="max-w-5xl w-full bg-white shadow-xl rounded-2xl overflow-hidden">
+          <div className="bg-blue-600 p-6 text-white text-center relative">
+            {/* Go Back Button */}
+            <button 
+              onClick={() => setPhase('openTesting')} 
+              className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition"
+            >
+              <ArrowLeft size={16} /> Back to Testing
+            </button>
             <h1 className="text-2xl font-bold">Final Evaluation</h1>
             <p className="opacity-90">Rate each system based on model quality and budget adherence</p>
           </div>
+          
           <div className="p-4 md:p-8 bg-gray-50">
-            <div className="text-center mb-8">
+            {/* Session Info */}
+            <div className="text-center mb-6">
               <p className="text-gray-600">You completed {roundHistory.length} comparison round{roundHistory.length !== 1 ? 's' : ''}</p>
               <p className="text-xs text-gray-400 mt-2">(Model identities remain hidden — rate based on your experience)</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
-              {renderEvalCard("System A", systemACost, evalRatingA, setEvalRatingA, cupidWins)}
-              {renderEvalCard("System B", systemBCost, evalRatingB, setEvalRatingB, baselineWins)}
+
+            {/* Group-specific reminder panel */}
+            <div className="mb-8">
+              {personaGroup === 'traditional' && assignedConstraints.length > 0 && (
+                <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Target size={18} className="text-purple-600" />
+                    <span className="font-bold text-purple-800">Your Model Requirements</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {assignedConstraints.map((c, i) => (
+                      <span key={i} className="bg-purple-100 text-purple-800 text-sm px-3 py-1 rounded-full font-medium border border-purple-200">
+                        {formatConstraint(c)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {personaGroup === 'expert' && selectedExpertSubject && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+                  <div className="flex items-center gap-2">
+                    <BookOpen size={18} className="text-blue-600" />
+                    <span className="font-bold text-blue-800">Expert Mode:</span>
+                    <span className="text-blue-700">{EXPERT_SUBJECTS.find(s => s.id === selectedExpertSubject)?.label}</span>
+                  </div>
+                  <p className="text-sm text-blue-600 mt-2">Rate based on domain knowledge accuracy and helpfulness for your field.</p>
+                </div>
+              )}
+
+              {personaGroup === 'preference' && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-4">
+                  <div className="flex items-center gap-2">
+                    <ThumbsUp size={18} className="text-indigo-600" />
+                    <span className="font-bold text-indigo-800">Personal Preference Mode</span>
+                  </div>
+                  <p className="text-sm text-indigo-600 mt-2">Rate based on your personal criteria — quality, style, helpfulness, or whatever matters to you.</p>
+                </div>
+              )}
+
+              {/* Budget reminder */}
+              <div className="bg-gray-100 rounded-lg p-3 flex items-center justify-center gap-4 text-sm">
+                <span className="text-gray-500">Your Budget:</span>
+                <span className="font-bold text-gray-800">${budgetConstraints.maxCost}</span>
+                <span className="text-gray-400">•</span>
+                <span className="text-gray-500">Max Rounds:</span>
+                <span className="font-bold text-gray-800">{budgetConstraints.maxRounds}</span>
+              </div>
             </div>
+
+            {/* Rating cards with optional model info for traditional group */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+              <div className="space-y-4">
+                {renderEvalCard("System A", systemACost, evalRatingA, setEvalRatingA, cupidWins)}
+                {/* Model info for traditional group */}
+                {personaGroup === 'traditional' && finalCupidStats && (
+                  <div className="bg-white border rounded-xl p-4">
+                    <h4 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
+                      <Info size={14} /> System A - Final Model Specs
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="bg-purple-50 p-2 rounded"><span className="text-gray-500">Intelligence:</span><span className="font-bold text-purple-700 ml-1">{finalCupidStats.intelligence || '—'}</span></div>
+                      <div className="bg-blue-50 p-2 rounded"><span className="text-gray-500">Speed:</span><span className="font-bold text-blue-700 ml-1">{finalCupidStats.speed || '—'}</span></div>
+                      <div className="bg-indigo-50 p-2 rounded"><span className="text-gray-500">Reasoning:</span><span className="font-bold text-indigo-700 ml-1">{finalCupidStats.reasoning ? 'Yes' : 'No'}</span></div>
+                      <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Input:</span><span className="font-bold text-green-700 ml-1">${finalCupidStats.input_price}/1M</span></div>
+                      <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Output:</span><span className="font-bold text-green-700 ml-1">${finalCupidStats.output_price}/1M</span></div>
+                      <div className="bg-orange-50 p-2 rounded"><span className="text-gray-500">Context:</span><span className="font-bold text-orange-700 ml-1">{finalCupidStats.context_window?.toLocaleString() || '—'}</span></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="space-y-4">
+                {renderEvalCard("System B", systemBCost, evalRatingB, setEvalRatingB, baselineWins)}
+                {/* Model info for traditional group */}
+                {personaGroup === 'traditional' && finalBaselineStats && (
+                  <div className="bg-white border rounded-xl p-4">
+                    <h4 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
+                      <Info size={14} /> System B - Final Model Specs
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="bg-purple-50 p-2 rounded"><span className="text-gray-500">Intelligence:</span><span className="font-bold text-purple-700 ml-1">{finalBaselineStats.intelligence || '—'}</span></div>
+                      <div className="bg-blue-50 p-2 rounded"><span className="text-gray-500">Speed:</span><span className="font-bold text-blue-700 ml-1">{finalBaselineStats.speed || '—'}</span></div>
+                      <div className="bg-indigo-50 p-2 rounded"><span className="text-gray-500">Reasoning:</span><span className="font-bold text-indigo-700 ml-1">{finalBaselineStats.reasoning ? 'Yes' : 'No'}</span></div>
+                      <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Input:</span><span className="font-bold text-green-700 ml-1">${finalBaselineStats.input_price}/1M</span></div>
+                      <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Output:</span><span className="font-bold text-green-700 ml-1">${finalBaselineStats.output_price}/1M</span></div>
+                      <div className="bg-orange-50 p-2 rounded"><span className="text-gray-500">Context:</span><span className="font-bold text-orange-700 ml-1">{finalBaselineStats.context_window?.toLocaleString() || '—'}</span></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
             <div className="max-w-2xl mx-auto space-y-6">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Any final thoughts? (optional)</label>
                 <textarea className="w-full border rounded-lg p-3 h-24 bg-white" placeholder="What worked well? What could be improved?" value={evalComment} onChange={(e) => setEvalComment(e.target.value)} />
               </div>
-              <button onClick={handleFinalSubmit} disabled={evalRatingA === 0 || evalRatingB === 0} className="w-full bg-blue-600 text-white py-4 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center">Submit & Finish <ArrowRight className="ml-2" size={18} /></button>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setPhase('openTesting')} 
+                  className="flex-1 bg-gray-200 text-gray-700 py-4 rounded-lg font-bold hover:bg-gray-300 transition flex items-center justify-center"
+                >
+                  <ArrowLeft className="mr-2" size={18} /> Back to Testing
+                </button>
+                <button 
+                  onClick={handleFinalSubmit} 
+                  disabled={evalRatingA === 0 || evalRatingB === 0} 
+                  className="flex-1 bg-blue-600 text-white py-4 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center"
+                >
+                  Submit & Finish <ArrowRight className="ml-2" size={18} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
