@@ -2,11 +2,14 @@ import React, { useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import {
   ArrowRight, MessageSquare, User, CheckCircle,
-  Star, DollarSign, Zap, Brain, X, Info, RefreshCw, 
+  Star, DollarSign, Zap, Brain, X, Info, RefreshCw,
   AlertCircle, Download, Send, MessageCircle, Target, Sparkles,
   BookOpen, Heart, ThumbsUp, Settings, HelpCircle
 } from 'lucide-react';
-
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import remarkGfm from 'remark-gfm';
+import 'katex/dist/katex.min.css';
 // --- API CONFIGURATION ---
 const API_URL = 'https://cupid-vs-baseline-arena.onrender.com';
 
@@ -14,6 +17,8 @@ const API_URL = 'https://cupid-vs-baseline-arena.onrender.com';
 const Markdown: React.FC<{ content: string; className?: string }> = ({ content, className = '' }) => (
   <ReactMarkdown
     className={`prose prose-sm max-w-none ${className}`}
+    remarkPlugins={[remarkMath, remarkGfm]} // Adds Math and Table parsing
+    rehypePlugins={[rehypeKatex]}
     components={{
       // Headers
       h1: ({ children }) => <h1 className="text-xl font-bold mt-4 mb-2 text-gray-900">{children}</h1>,
@@ -404,7 +409,7 @@ const App: React.FC = () => {
 
   const sendOpenTestMessage = async () => {
     if (!openTestInput.trim() || openTestLoading) return;
-    
+
     if (openTestSystem === 'A' && openTestRoundsA >= OPEN_TESTING_MAX_ROUNDS) {
       setError(`System A has reached the maximum of ${OPEN_TESTING_MAX_ROUNDS} rounds.`);
       return;
@@ -413,7 +418,7 @@ const App: React.FC = () => {
       setError(`System B has reached the maximum of ${OPEN_TESTING_MAX_ROUNDS} rounds.`);
       return;
     }
-    
+
     const userMsg: OpenTestMessage = { role: 'user', content: openTestInput, system: openTestSystem };
     setOpenTestMessages(prev => [...prev, userMsg]);
     setOpenTestInput('');
@@ -436,26 +441,26 @@ const App: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        const assistantMsg: OpenTestMessage = { 
-          role: 'assistant', 
-          content: data.response || 'No response received', 
-          system: openTestSystem 
+        const assistantMsg: OpenTestMessage = {
+          role: 'assistant',
+          content: data.response || 'No response received',
+          system: openTestSystem
         };
         setOpenTestMessages(prev => [...prev, assistantMsg]);
       } else {
-        const assistantMsg: OpenTestMessage = { 
-          role: 'assistant', 
-          content: '[Demo mode: Chat endpoint not connected.]', 
-          system: openTestSystem 
+        const assistantMsg: OpenTestMessage = {
+          role: 'assistant',
+          content: '[Demo mode: Chat endpoint not connected.]',
+          system: openTestSystem
         };
         setOpenTestMessages(prev => [...prev, assistantMsg]);
       }
     } catch (e) {
       console.error('Chat error:', e);
-      const assistantMsg: OpenTestMessage = { 
-        role: 'assistant', 
-        content: '[Connection error. Please try again.]', 
-        system: openTestSystem 
+      const assistantMsg: OpenTestMessage = {
+        role: 'assistant',
+        content: '[Connection error. Please try again.]',
+        system: openTestSystem
       };
       setOpenTestMessages(prev => [...prev, assistantMsg]);
     } finally {
@@ -498,14 +503,14 @@ const App: React.FC = () => {
 
   const handlePersonaGroupSelect = (group: PersonaGroup) => {
     setPersonaGroup(group);
-    
+
     if (group === 'traditional') {
       const constraints = sampleConstraints();
       setAssignedConstraints(constraints);
     } else {
       setAssignedConstraints([]);
     }
-    
+
     if (group !== 'expert') {
       setSelectedExpertSubject(null);
     }
@@ -572,7 +577,7 @@ const App: React.FC = () => {
 
   const downloadResults = () => {
     const results = {
-      session_id: sessionId, demographics, persona_group: personaGroup, 
+      session_id: sessionId, demographics, persona_group: personaGroup,
       expert_subject: selectedExpertSubject, constraints: assignedConstraints,
       budget: budgetConstraints, history: roundHistory,
       evaluation: { rating_a: evalRatingA, rating_b: evalRatingB, comment: evalComment },
@@ -686,15 +691,13 @@ const App: React.FC = () => {
             <button
               key={item.value}
               onClick={() => setRating(item.value)}
-              className={`w-full p-3 rounded-lg text-left transition-all flex items-center gap-3 ${
-                rating === item.value 
+              className={`w-full p-3 rounded-lg text-left transition-all flex items-center gap-3 ${rating === item.value
                   ? 'bg-blue-600 text-white'
                   : 'bg-white border border-gray-200 hover:border-gray-300 text-gray-700'
-              }`}
+                }`}
             >
-              <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                rating === item.value ? 'bg-white/20' : 'bg-gray-100'
-              }`}>{item.value}</span>
+              <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${rating === item.value ? 'bg-white/20' : 'bg-gray-100'
+                }`}>{item.value}</span>
               <span className="text-sm">{item.label}</span>
             </button>
           ))}
@@ -716,7 +719,7 @@ const App: React.FC = () => {
           </div>
           <div className="p-6 md:p-8 overflow-y-auto max-h-[60vh] prose prose-sm max-w-none text-gray-700">
             <p>Thank you for participating in this study. In this experiment, you will help us compare two systems by interacting with both and providing your preferences. Your feedback will help us improve LLM matchmaking systems and how they are presented to users.</p>
-            
+
             <h3 className="text-lg font-semibold mt-4">Settings</h3>
             <p>There are <strong>25 LLM models from OpenAI</strong> ready for you to use. As a user, it might be difficult choosing a suitable model for your task. Our system will help you find your dream model.</p>
 
@@ -903,7 +906,7 @@ const App: React.FC = () => {
             <Brain className="mx-auto text-blue-600 mb-4" size={48} />
             <h1 className="text-2xl font-bold mb-2">Ready to Begin</h1>
             <p className="text-sm text-gray-500 mb-4">Budget: ${budgetConstraints.maxCost} • Up to {budgetConstraints.maxRounds} rounds</p>
-            
+
             {personaGroup === 'traditional' && assignedConstraints.length > 0 && (
               <div className="mb-4 p-4 bg-purple-50 rounded-lg text-left border border-purple-200">
                 <p className="text-sm font-bold text-purple-800 mb-2">Your Model Requirements:</p>
@@ -935,7 +938,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
         {renderModelInfoModal()}
-        
+
         <header className="bg-white border-b sticky top-0 z-10">
           <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
             <div className="flex items-center space-x-2">
@@ -954,9 +957,9 @@ const App: React.FC = () => {
         <main className="flex-grow max-w-7xl mx-auto px-4 py-4 w-full flex flex-col gap-6 pb-56 md:pb-8">
           {loading && <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center"><div className="flex flex-col items-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div><p className="font-mono text-sm">Getting responses...</p></div></div>}
           {error && <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2"><AlertCircle size={20} />{error}</div>}
-          
+
           <div className="bg-white p-4 rounded-lg shadow-sm border"><span className="text-xs font-bold text-gray-400 uppercase">Your Query</span><p className="text-gray-800 font-medium mt-1">{prompt}</p></div>
-          
+
           {/* System A */}
           <section>
             <div className="flex items-center justify-between mb-3">
@@ -999,7 +1002,7 @@ const App: React.FC = () => {
                 <div className="flex items-center gap-2">
                   {isLastRound && <span className="text-orange-600 font-bold">Final Round!</span>}
                   {canEndEarly && !isLastRound && (
-                    <button 
+                    <button
                       onClick={handleSatisfied}
                       className="bg-green-100 text-green-700 px-4 py-2 rounded-lg font-medium hover:bg-green-200 transition text-sm"
                     >
@@ -1008,7 +1011,7 @@ const App: React.FC = () => {
                   )}
                 </div>
               </div>
-              
+
               {!isLastRound && (
                 <textarea
                   placeholder="Enter your next query (required to continue)..."
@@ -1018,7 +1021,7 @@ const App: React.FC = () => {
                   onChange={(e) => setNextPrompt(e.target.value)}
                 />
               )}
-              
+
               <button onClick={handleSubmitRound} disabled={loading} className="w-full md:w-auto md:self-end bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition">
                 {isLastRound ? 'Continue to Play with Models →' : 'Submit & Next →'}
               </button>
@@ -1044,9 +1047,9 @@ const App: React.FC = () => {
         </header>
         <main className="flex-grow max-w-4xl mx-auto w-full p-4 flex flex-col">
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4"><p className="text-sm text-yellow-800"><strong>Take your time!</strong> Play with both models to help inform your final rating. Click "I'm Done" when ready.</p></div>
-          
+
           {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">{error}</div>}
-          
+
           <div className="flex gap-2 mb-4">
             <button onClick={() => { setOpenTestSystem('A'); setError(null); }} className={`flex-1 py-3 rounded-lg font-bold transition ${openTestSystem === 'A' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
               System A ({openTestRoundsA}/{OPEN_TESTING_MAX_ROUNDS})
@@ -1055,7 +1058,7 @@ const App: React.FC = () => {
               System B ({openTestRoundsB}/{OPEN_TESTING_MAX_ROUNDS})
             </button>
           </div>
-          
+
           <div className="flex-grow bg-white rounded-xl border overflow-hidden flex flex-col min-h-[400px]">
             <div className="flex-grow overflow-y-auto p-4 space-y-4">
               {openTestMessages.filter(m => m.system === openTestSystem).length === 0 && (
@@ -1078,18 +1081,18 @@ const App: React.FC = () => {
               {openTestLoading && <div className="flex justify-start"><div className="bg-gray-100 p-3 rounded-lg"><RefreshCw size={16} className="animate-spin" /></div></div>}
             </div>
             <div className="border-t p-4 flex gap-2">
-              <input 
-                type="text" 
-                className="flex-grow border rounded-lg px-4 py-2" 
+              <input
+                type="text"
+                className="flex-grow border rounded-lg px-4 py-2"
                 placeholder={canChat ? `Ask System ${openTestSystem}'s model...` : `Max ${OPEN_TESTING_MAX_ROUNDS} rounds reached`}
-                value={openTestInput} 
-                onChange={(e) => setOpenTestInput(e.target.value)} 
+                value={openTestInput}
+                onChange={(e) => setOpenTestInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && canChat && sendOpenTestMessage()}
                 disabled={!canChat}
               />
-              <button 
-                onClick={sendOpenTestMessage} 
-                disabled={openTestLoading || !openTestInput.trim() || !canChat} 
+              <button
+                onClick={sendOpenTestMessage}
+                disabled={openTestLoading || !openTestInput.trim() || !canChat}
                 className="px-4 py-2 rounded-lg font-bold bg-blue-600 text-white disabled:opacity-50"
               >
                 <Send size={18} />
