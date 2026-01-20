@@ -768,12 +768,11 @@ const App: React.FC = () => {
     if (!personaGroup) { setError("Please select a testing mode."); return; }
     if (personaGroup === 'expert' && !selectedExpertSubject) { setError("Please select your area of expertise."); return; }
     setError(null);
-    // Show tutorial for first time
+    // Always go to interaction phase, show tutorial if first time
+    setPhase('interaction');
     if (!hasSeenInteractionTutorial) {
       setShowInteractionTutorial(true);
       setTutorialStep(0);
-    } else {
-      setPhase('interaction');
     }
   };
 
@@ -782,9 +781,6 @@ const App: React.FC = () => {
     setShowTestingTutorial(false);
     setHasSeenInteractionTutorial(true);
     setHasSeenTestingTutorial(true);
-    if (phase === 'calibration') {
-      setPhase('interaction');
-    }
   };
 
   const handleNextTutorialStep = () => {
@@ -795,7 +791,7 @@ const App: React.FC = () => {
         setShowInteractionTutorial(false);
         setHasSeenInteractionTutorial(true);
         setTutorialStep(0);
-        setPhase('interaction');
+        // Phase is already 'interaction', no need to change
       }
     } else if (showTestingTutorial) {
       if (tutorialStep < TESTING_TUTORIAL_STEPS.length - 1) {
@@ -857,6 +853,11 @@ const App: React.FC = () => {
           feedback: feedbackA, timestamp: new Date().toISOString()
         };
         setRoundHistory(prev => [...prev, historyEntry]);
+      }
+      // Show testing tutorial for first time
+      if (!hasSeenTestingTutorial) {
+        setShowTestingTutorial(true);
+        setTutorialStep(0);
       }
       setPhase('openTesting');
       return;
