@@ -209,60 +209,103 @@ function sampleBudget(): BudgetConstraints {
   return { maxRounds: randomRounds, maxCost: randomCost };
 }
 
-// --- CONSTRAINT SETS FOR TRADITIONAL MODE ---
-// Each set narrows down to exactly 1-2 models (text-only attributes)
-const CONSTRAINT_SETS: Constraint[][] = [
-  // Group 1: Only o3 (1 model) - highest intelligence
-  [
-    { attribute: 'intelligence', operator: '==', value: 5, displayName: 'Intelligence Rating', unit: '' },
-  ],
-  // Group 2: Only GPT-4 (1 model) - premium pricing
-  [
-    { attribute: 'input_price', operator: '>=', value: 20, displayName: 'Input Price', unit: '$/1M tokens' },
-  ],
-  // Group 3: Only gpt-3.5-turbo-instruct (1 model) - smallest context
-  [
-    { attribute: 'context_window', operator: '<=', value: 4096, displayName: 'Context Window', unit: 'tokens' },
-  ],
-  // Group 4: GPT-4.1-nano & GPT-5-nano (2 models) - fastest with decent intelligence
-  [
-    { attribute: 'speed', operator: '==', value: 5, displayName: 'Speed Rating', unit: '' },
-    { attribute: 'intelligence', operator: '>=', value: 2, displayName: 'Intelligence Rating', unit: '' },
-  ],
-  // Group 5: GPT-5.1 & GPT-5.2 (2 models) - smart and fast
-  [
-    { attribute: 'intelligence', operator: '>=', value: 4, displayName: 'Intelligence Rating', unit: '' },
-    { attribute: 'speed', operator: '>=', value: 4, displayName: 'Speed Rating', unit: '' },
-  ],
-  // Group 6: Only GPT-5-nano (1 model) - cheapest reasoning model
-  [
-    { attribute: 'input_price', operator: '<=', value: 0.1, displayName: 'Input Price', unit: '$/1M tokens' },
-    { attribute: 'reasoning', operator: '==', value: true, displayName: 'Reasoning Capability', unit: '' },
-  ],
-  // Group 7: Only GPT-4.1 (1 model) - largest context + high intelligence
-  [
-    { attribute: 'context_window', operator: '>=', value: 1000000, displayName: 'Context Window', unit: 'tokens' },
-    { attribute: 'intelligence', operator: '==', value: 4, displayName: 'Intelligence Rating', unit: '' },
-  ],
-  // Group 8: Only GPT-3.5-turbo (1 model) - budget option
-  [
-    { attribute: 'speed', operator: '==', value: 2, displayName: 'Speed Rating', unit: '' },
-    { attribute: 'input_price', operator: '<=', value: 1, displayName: 'Input Price', unit: '$/1M tokens' },
-  ],
-  // Group 9: o4-mini & o3-mini (2 models) - specific output price tier
-  [
-    { attribute: 'output_price', operator: '==', value: 4.4, displayName: 'Output Price', unit: '$/1M tokens' },
-  ],
-  // Group 10: Only GPT-5 (1 model) - large context reasoning at moderate speed
-  [
-    { attribute: 'context_window', operator: '==', value: 400000, displayName: 'Context Window', unit: 'tokens' },
-    { attribute: 'speed', operator: '==', value: 3, displayName: 'Speed Rating', unit: '' },
-  ],
+// --- CONSTRAINT SAMPLING (Based on Constraint_Picker.ipynb) ---
+// Objective columns that can be used for constraints
+const OBJECTIVE_COLUMNS = [
+  { key: 'intelligence', displayName: 'Intelligence Rating', unit: '', isCost: false },
+  { key: 'speed', displayName: 'Speed Rating', unit: '', isCost: false },
+  { key: 'reasoning', displayName: 'Reasoning Capability', unit: '', isCost: false, isBoolean: true },
+  { key: 'input_price', displayName: 'Input Price', unit: '$/1M tokens', isCost: true },
+  { key: 'output_price', displayName: 'Output Price', unit: '$/1M tokens', isCost: true },
+  { key: 'context_window', displayName: 'Context Window', unit: 'tokens', isCost: false },
+  { key: 'max_output', displayName: 'Max Output', unit: 'tokens', isCost: false },
 ];
 
+// Model pool data for constraint sampling (simplified version)
+// In production, this would come from the backend
+const MODEL_POOL_DATA = [
+  { id: 1, intelligence: 3, speed: 3, reasoning: 0, input_price: 5, output_price: 15, context_window: 128000, max_output: 16384 },
+  { id: 2, intelligence: 4, speed: 3, reasoning: 0, input_price: 2, output_price: 8, context_window: 1047576, max_output: 32768 },
+  { id: 3, intelligence: 4, speed: 3, reasoning: 1, input_price: 1.1, output_price: 4.4, context_window: 200000, max_output: 100000 },
+  { id: 4, intelligence: 1, speed: 2, reasoning: 0, input_price: 3, output_price: 4, context_window: 16385, max_output: 4096 },
+  { id: 5, intelligence: 1, speed: 2, reasoning: 0, input_price: 1.5, output_price: 2, context_window: 4096, max_output: 4096 },
+  { id: 6, intelligence: 1, speed: 2, reasoning: 0, input_price: 0.5, output_price: 1.5, context_window: 16385, max_output: 4096 },
+  { id: 7, intelligence: 2, speed: 3, reasoning: 0, input_price: 10, output_price: 30, context_window: 128000, max_output: 4096 },
+  { id: 8, intelligence: 2, speed: 3, reasoning: 0, input_price: 10, output_price: 30, context_window: 128000, max_output: 4096 },
+  { id: 9, intelligence: 3, speed: 4, reasoning: 0, input_price: 0.4, output_price: 1.6, context_window: 1047576, max_output: 32768 },
+  { id: 10, intelligence: 2, speed: 5, reasoning: 0, input_price: 0.1, output_price: 0.4, context_window: 1047576, max_output: 32768 },
+  { id: 11, intelligence: 2, speed: 3, reasoning: 0, input_price: 30, output_price: 60, context_window: 8192, max_output: 8192 },
+  { id: 12, intelligence: 3, speed: 3, reasoning: 0, input_price: 2.5, output_price: 10, context_window: 128000, max_output: 16384 },
+  { id: 13, intelligence: 2, speed: 4, reasoning: 0, input_price: 0.15, output_price: 0.6, context_window: 128000, max_output: 16384 },
+  { id: 14, intelligence: 2, speed: 4, reasoning: 0, input_price: 0.15, output_price: 0.6, context_window: 128000, max_output: 16384 },
+  { id: 15, intelligence: 3, speed: 3, reasoning: 0, input_price: 2.5, output_price: 10, context_window: 128000, max_output: 16384 },
+  { id: 16, intelligence: 2, speed: 4, reasoning: 0, input_price: 0.15, output_price: 0.6, context_window: 128000, max_output: 16384 },
+  { id: 17, intelligence: 3, speed: 4, reasoning: 1, input_price: 0.25, output_price: 2, context_window: 400000, max_output: 128000 },
+  { id: 18, intelligence: 2, speed: 5, reasoning: 1, input_price: 0.05, output_price: 0.4, context_window: 400000, max_output: 128000 },
+  { id: 19, intelligence: 3, speed: 3, reasoning: 0, input_price: 2.5, output_price: 10, context_window: 128000, max_output: 16384 },
+  { id: 20, intelligence: 4, speed: 4, reasoning: 1, input_price: 1.25, output_price: 10, context_window: 400000, max_output: 128000 },
+  { id: 21, intelligence: 4, speed: 3, reasoning: 1, input_price: 1.25, output_price: 10, context_window: 400000, max_output: 128000 },
+  { id: 22, intelligence: 4, speed: 3, reasoning: 1, input_price: 1.1, output_price: 4.4, context_window: 200000, max_output: 100000 },
+  { id: 23, intelligence: 5, speed: 1, reasoning: 1, input_price: 2, output_price: 8, context_window: 200000, max_output: 100000 },
+  { id: 24, intelligence: 4, speed: 4, reasoning: 1, input_price: 1.75, output_price: 14, context_window: 400000, max_output: 128000 },
+  { id: 25, intelligence: 4, speed: 4, reasoning: 1, input_price: 1.75, output_price: 14, context_window: 400000, max_output: 128000 },
+];
+
+// Sample constraints using min-max rule from Constraint_Picker.ipynb
+function sampleConstraintsDynamic(nObjectives: number = 3, kSamples: number = 5): Constraint[] {
+  const constraints: Constraint[] = [];
+  
+  // Shuffle and pick n objective columns
+  const shuffled = [...OBJECTIVE_COLUMNS].sort(() => Math.random() - 0.5);
+  const selectedCols = shuffled.slice(0, Math.min(nObjectives, shuffled.length));
+  
+  for (const col of selectedCols) {
+    // Get all values for this column from model pool
+    const values = MODEL_POOL_DATA.map(m => (m as any)[col.key]).filter(v => v !== undefined && v !== null);
+    
+    if (values.length === 0) continue;
+    
+    // Sample k values
+    const samples: number[] = [];
+    for (let i = 0; i < kSamples; i++) {
+      samples.push(values[Math.floor(Math.random() * values.length)]);
+    }
+    
+    // For cost columns: use MIN (user wants low cost, so we set upper bound)
+    // For benefit columns: use MAX (user wants high value, so we set lower bound)
+    let chosenValue: number | boolean;
+    let operator: '>=' | '<=' | '==';
+    
+    if (col.isBoolean) {
+      // For boolean, randomly decide if required or not
+      chosenValue = Math.random() > 0.5;
+      operator = '==';
+    } else if (col.isCost) {
+      // Cost: user wants <= this value
+      chosenValue = Math.min(...samples);
+      operator = '<=';
+    } else {
+      // Benefit: user wants >= this value
+      chosenValue = Math.max(...samples);
+      operator = '>=';
+    }
+    
+    constraints.push({
+      attribute: col.key,
+      operator,
+      value: chosenValue,
+      displayName: col.displayName,
+      unit: col.unit
+    });
+  }
+  
+  return constraints;
+}
+
 function sampleConstraints(): Constraint[] {
-  const idx = Math.floor(Math.random() * CONSTRAINT_SETS.length);
-  return CONSTRAINT_SETS[idx];
+  // Sample 2-4 constraints randomly
+  const numConstraints = 2 + Math.floor(Math.random() * 3); // 2, 3, or 4
+  return sampleConstraintsDynamic(numConstraints, 5);
 }
 
 function formatConstraint(c: Constraint): string {
@@ -277,9 +320,70 @@ function formatConstraint(c: Constraint): string {
     }
   }
   
-  const valueStr = c.value.toLocaleString();
+  const valueStr = typeof c.value === 'number' ? c.value.toLocaleString() : String(c.value);
   return `${c.displayName} ${opMap[c.operator]} ${valueStr}${c.unit ? ` ${c.unit}` : ''}`;
 }
+
+// --- BUDGET COMPLIANCE RATING LABELS ---
+const BUDGET_RATING_LABELS = [
+  { value: 1, label: 'Heavily exceeded the budget', color: 'text-red-600' },
+  { value: 2, label: 'Somewhat exceeded the budget', color: 'text-orange-600' },
+  { value: 3, label: 'Just right', color: 'text-green-600' },
+  { value: 4, label: 'Saved some money', color: 'text-blue-600' },
+  { value: 5, label: 'Very efficient cost-wise', color: 'text-purple-600' },
+];
+
+// --- TUTORIAL STEPS ---
+const INTERACTION_TUTORIAL_STEPS = [
+  {
+    title: 'Welcome to the Interaction Stage',
+    description: 'In this stage, you will ask questions and interact with the system. Based on your inputs, the system will match you with a suitable model.',
+    icon: '🎯'
+  },
+  {
+    title: 'Selecting Your Preferred Output',
+    description: 'For each query, you\'ll see two responses from different models. Click on the one you prefer. Your choices help the system learn your preferences.',
+    icon: '👆'
+  },
+  {
+    title: 'Optional Language Feedback',
+    description: 'You can provide feedback like "give me a cheaper model" or "I need smarter responses" to guide the system toward your ideal model.',
+    icon: '💬'
+  },
+  {
+    title: 'Review Model Information',
+    description: 'Check the model specifications (intelligence, speed, price, etc.) to see if they match your requirements. This helps you make informed decisions.',
+    icon: '📋'
+  },
+  {
+    title: 'Confirm When Satisfied',
+    description: 'When you\'re happy with the model selection, click "I\'m Satisfied" to proceed to the testing phase. You can end early after the first round.',
+    icon: '✅'
+  }
+];
+
+const TESTING_TUTORIAL_STEPS = [
+  {
+    title: 'Welcome to the Testing Stage',
+    description: 'Now you\'ll test both matched models side-by-side. The same prompt goes to both systems so you can compare their outputs directly.',
+    icon: '🔬'
+  },
+  {
+    title: 'Focus on Output Quality',
+    description: 'Pay attention to accuracy, helpfulness, clarity, and relevance of responses. This will help you decide which system found a better model for you.',
+    icon: '⭐'
+  },
+  {
+    title: 'Compare Side-by-Side',
+    description: 'Each prompt shows System A and System B responses next to each other. You have up to 10 rounds to test thoroughly.',
+    icon: '↔️'
+  },
+  {
+    title: 'Proceed to Rating',
+    description: 'After testing, you\'ll rate both systems on model quality and budget compliance. Make sure to test enough to form a clear opinion!',
+    icon: '📊'
+  }
+];
 
 // --- EXPERT SUBJECTS ---
 const EXPERT_SUBJECTS = [
@@ -355,8 +459,20 @@ const App: React.FC = () => {
 
   const [evalRatingA, setEvalRatingA] = useState<number>(0);
   const [evalRatingB, setEvalRatingB] = useState<number>(0);
+  const [evalBudgetRatingA, setEvalBudgetRatingA] = useState<number>(0);
+  const [evalBudgetRatingB, setEvalBudgetRatingB] = useState<number>(0);
   const [evalComment, setEvalComment] = useState<string>('');
   const [finished, setFinished] = useState<boolean>(false);
+
+  // Tutorial state
+  const [showInteractionTutorial, setShowInteractionTutorial] = useState<boolean>(false);
+  const [showTestingTutorial, setShowTestingTutorial] = useState<boolean>(false);
+  const [tutorialStep, setTutorialStep] = useState<number>(0);
+  const [hasSeenInteractionTutorial, setHasSeenInteractionTutorial] = useState<boolean>(false);
+  const [hasSeenTestingTutorial, setHasSeenTestingTutorial] = useState<boolean>(false);
+
+  // Gate for rating - must have tested at least once
+  const [hasTestedModels, setHasTestedModels] = useState<boolean>(false);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -581,6 +697,7 @@ const App: React.FC = () => {
 
       setOpenTestRoundsA(prev => prev + 1);
       setOpenTestRoundsB(prev => prev + 1);
+      setHasTestedModels(true); // Mark that user has tested the models
 
     } catch (e) {
       console.error('Chat error:', e);
@@ -602,18 +719,25 @@ const App: React.FC = () => {
           constraints: assignedConstraints,
           budget: budgetConstraints,
           history: roundHistory,
-          evaluation: { rating_a: evalRatingA, rating_b: evalRatingB, comment: evalComment },
+          evaluation: { 
+            quality_rating_a: evalRatingA, 
+            quality_rating_b: evalRatingB, 
+            budget_rating_a: evalBudgetRatingA,
+            budget_rating_b: evalBudgetRatingB,
+            comment: evalComment 
+          },
           final_cost_a: (arenaState?.cupid_cost || 0) + (arenaState?.routing_cost || 0),
           final_cost_b: arenaState?.baseline_cost || 0,
           terminated_early: roundHistory.length < budgetConstraints.maxRounds,
           open_test_rounds_a: openTestRoundsA,
           open_test_rounds_b: openTestRoundsB,
+          side_by_side_rounds: sideBySideRounds.length,
         })
       });
     } catch (e) {
       console.error('Failed to save session:', e);
     }
-  }, [sessionId, demographics, personaGroup, selectedExpertSubject, assignedConstraints, budgetConstraints, roundHistory, evalRatingA, evalRatingB, evalComment, arenaState, openTestRoundsA, openTestRoundsB]);
+  }, [sessionId, demographics, personaGroup, selectedExpertSubject, assignedConstraints, budgetConstraints, roundHistory, evalRatingA, evalRatingB, evalBudgetRatingA, evalBudgetRatingB, evalComment, arenaState, openTestRoundsA, openTestRoundsB, sideBySideRounds]);
 
   const handleConsent = () => {
     const newSessionId = `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -644,7 +768,50 @@ const App: React.FC = () => {
     if (!personaGroup) { setError("Please select a testing mode."); return; }
     if (personaGroup === 'expert' && !selectedExpertSubject) { setError("Please select your area of expertise."); return; }
     setError(null);
-    setPhase('interaction');
+    // Show tutorial for first time
+    if (!hasSeenInteractionTutorial) {
+      setShowInteractionTutorial(true);
+      setTutorialStep(0);
+    } else {
+      setPhase('interaction');
+    }
+  };
+
+  const handleSkipTutorial = () => {
+    setShowInteractionTutorial(false);
+    setShowTestingTutorial(false);
+    setHasSeenInteractionTutorial(true);
+    setHasSeenTestingTutorial(true);
+    if (phase === 'calibration') {
+      setPhase('interaction');
+    }
+  };
+
+  const handleNextTutorialStep = () => {
+    if (showInteractionTutorial) {
+      if (tutorialStep < INTERACTION_TUTORIAL_STEPS.length - 1) {
+        setTutorialStep(tutorialStep + 1);
+      } else {
+        setShowInteractionTutorial(false);
+        setHasSeenInteractionTutorial(true);
+        setTutorialStep(0);
+        setPhase('interaction');
+      }
+    } else if (showTestingTutorial) {
+      if (tutorialStep < TESTING_TUTORIAL_STEPS.length - 1) {
+        setTutorialStep(tutorialStep + 1);
+      } else {
+        setShowTestingTutorial(false);
+        setHasSeenTestingTutorial(true);
+        setTutorialStep(0);
+      }
+    }
+  };
+
+  const handlePrevTutorialStep = () => {
+    if (tutorialStep > 0) {
+      setTutorialStep(tutorialStep - 1);
+    }
   };
 
   const startSession = async () => {
@@ -663,6 +830,11 @@ const App: React.FC = () => {
         feedback: feedbackA, timestamp: new Date().toISOString()
       };
       setRoundHistory(prev => [...prev, historyEntry]);
+    }
+    // Show testing tutorial for first time
+    if (!hasSeenTestingTutorial) {
+      setShowTestingTutorial(true);
+      setTutorialStep(0);
     }
     setPhase('openTesting');
   };
@@ -698,13 +870,50 @@ const App: React.FC = () => {
   const handleFinalSubmit = async () => { await saveSessionData(); setFinished(true); };
 
   const downloadResults = () => {
+    const systemACost = (arenaState?.cupid_cost || 0) + (arenaState?.routing_cost || 0);
+    const systemBCost = arenaState?.baseline_cost || 0;
+    
     const results = {
-      session_id: sessionId, demographics, persona_group: personaGroup,
-      expert_subject: selectedExpertSubject, constraints: assignedConstraints,
-      budget: budgetConstraints, history: roundHistory,
-      evaluation: { rating_a: evalRatingA, rating_b: evalRatingB, comment: evalComment },
-      final_costs: { system_a: (arenaState?.cupid_cost || 0) + (arenaState?.routing_cost || 0), system_b: arenaState?.baseline_cost || 0 },
-      open_test_rounds: { system_a: openTestRoundsA, system_b: openTestRoundsB }
+      session_id: sessionId, 
+      demographics, 
+      persona_group: personaGroup,
+      expert_subject: selectedExpertSubject, 
+      constraints: assignedConstraints,
+      budget: budgetConstraints, 
+      history: roundHistory,
+      evaluation: { 
+        quality_rating_a: evalRatingA, 
+        quality_rating_b: evalRatingB, 
+        budget_rating_a: evalBudgetRatingA,
+        budget_rating_b: evalBudgetRatingB,
+        comment: evalComment 
+      },
+      final_costs: { 
+        system_a: systemACost, 
+        system_b: systemBCost 
+      },
+      open_test_rounds: { 
+        system_a: openTestRoundsA, 
+        system_b: openTestRoundsB,
+        side_by_side_rounds: sideBySideRounds.length
+      },
+      side_by_side_test_data: sideBySideRounds,
+      // Add cupid and baseline labels for clarity
+      cupid: {
+        label: 'System A',
+        algorithm: 'CUPID (Pairwise GP with routing)',
+        total_cost: arenaState?.cupid_cost || 0,
+        routing_cost: arenaState?.routing_cost || 0,
+        quality_rating: evalRatingA,
+        budget_rating: evalBudgetRatingA
+      },
+      baseline: {
+        label: 'System B',
+        algorithm: 'Bradley-Terry Baseline',
+        total_cost: arenaState?.baseline_cost || 0,
+        quality_rating: evalRatingB,
+        budget_rating: evalBudgetRatingB
+      }
     };
     const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -855,15 +1064,17 @@ const App: React.FC = () => {
     );
   };
 
-  const renderEvalCard = (systemLabel: string, totalCost: number, rating: number, setRating: (r: number) => void, winCount: number) => (
+  const renderEvalCard = (systemLabel: string, totalCost: number, rating: number, setRating: (r: number) => void, budgetRating: number, setBudgetRating: (r: number) => void, winCount: number) => (
     <div className="border-2 border-blue-200 bg-blue-50 rounded-xl p-6 relative overflow-hidden">
       <div className="absolute top-0 right-0 bg-blue-200 text-blue-800 text-xs font-bold px-3 py-1 rounded-bl-lg">{systemLabel}</div>
       <div className="space-y-3 mb-6 mt-4">
         <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center"><span className="text-sm text-gray-500">Total Cost</span><span className="font-mono font-bold text-gray-800 flex items-center"><DollarSign size={14} />{totalCost.toFixed(4)}</span></div>
         <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center"><span className="text-sm text-gray-500">Times Preferred</span><span className="font-mono font-bold text-gray-800">{winCount} rounds</span></div>
       </div>
-      <div>
-        <label className="block text-sm font-bold text-blue-900 mb-3 text-center">Rate this system</label>
+      
+      {/* Quality Rating */}
+      <div className="mb-6">
+        <label className="block text-sm font-bold text-blue-900 mb-3 text-center">⭐ Rate Model Quality</label>
         <div className="space-y-2">
           {RATING_LABELS.map((item) => (
             <button
@@ -881,8 +1092,96 @@ const App: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {/* Budget Compliance Rating */}
+      <div>
+        <label className="block text-sm font-bold text-green-800 mb-3 text-center">💰 Rate Budget Compliance</label>
+        <div className="space-y-2">
+          {BUDGET_RATING_LABELS.map((item) => (
+            <button
+              key={item.value}
+              onClick={() => setBudgetRating(item.value)}
+              className={`w-full p-2 rounded-lg text-left transition-all flex items-center gap-3 ${budgetRating === item.value
+                ? 'bg-green-600 text-white'
+                : 'bg-white border border-gray-200 hover:border-gray-300 text-gray-700'
+                }`}
+            >
+              <span className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${budgetRating === item.value ? 'bg-white/20' : 'bg-gray-100'
+                }`}>{item.value}</span>
+              <span className="text-xs">{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
+
+  // Tutorial Modal Component
+  const renderTutorialModal = () => {
+    if (!showInteractionTutorial && !showTestingTutorial) return null;
+    
+    const steps = showInteractionTutorial ? INTERACTION_TUTORIAL_STEPS : TESTING_TUTORIAL_STEPS;
+    const currentStep = steps[tutorialStep];
+    const totalSteps = steps.length;
+    const title = showInteractionTutorial ? 'Interaction Tutorial' : 'Testing Tutorial';
+    
+    return (
+      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl max-w-lg w-full p-8 relative">
+          {/* Progress indicator */}
+          <div className="flex justify-center gap-2 mb-6">
+            {steps.map((_, idx) => (
+              <div 
+                key={idx} 
+                className={`w-3 h-3 rounded-full transition-all ${idx === tutorialStep ? 'bg-blue-600 scale-110' : idx < tutorialStep ? 'bg-blue-300' : 'bg-gray-200'}`}
+              />
+            ))}
+          </div>
+          
+          {/* Content */}
+          <div className="text-center mb-8">
+            <div className="text-5xl mb-4">{currentStep.icon}</div>
+            <h3 className="text-xl font-bold text-gray-800 mb-3">{currentStep.title}</h3>
+            <p className="text-gray-600 leading-relaxed">{currentStep.description}</p>
+          </div>
+          
+          {/* Navigation */}
+          <div className="flex gap-3">
+            {tutorialStep > 0 ? (
+              <button 
+                onClick={handlePrevTutorialStep}
+                className="flex-1 py-3 px-4 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 font-medium flex items-center justify-center gap-2"
+              >
+                <ArrowLeft size={18} /> Back
+              </button>
+            ) : (
+              <button 
+                onClick={handleSkipTutorial}
+                className="flex-1 py-3 px-4 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 font-medium"
+              >
+                Skip Tutorial
+              </button>
+            )}
+            <button 
+              onClick={handleNextTutorialStep}
+              className="flex-1 py-3 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
+            >
+              {tutorialStep === totalSteps - 1 ? (
+                <>Let's Start! <CheckCircle size={18} /></>
+              ) : (
+                <>Next <ArrowRight size={18} /></>
+              )}
+            </button>
+          </div>
+          
+          {/* Step counter */}
+          <p className="text-center text-xs text-gray-400 mt-4">
+            Step {tutorialStep + 1} of {totalSteps}
+          </p>
+        </div>
+      </div>
+    );
+  };
 
   // ==================== PHASE RENDERS ====================
 
@@ -897,6 +1196,11 @@ const App: React.FC = () => {
             <p className="text-xs mt-2 opacity-75">IRB ID: STUDY00023557</p>
           </div>
           <div className="p-6 md:p-8 overflow-y-auto max-h-[60vh] prose prose-sm max-w-none text-gray-700">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="font-semibold text-blue-800 mb-1">🎯 Goal of This Study</p>
+              <p className="text-blue-700 text-sm">Help us evaluate and compare two AI model matching systems. Your ratings will determine which system is better at finding the right model for your needs.</p>
+            </div>
+            
             <p>Thank you for participating in this study. In this experiment, you will help us compare two systems by interacting with both and providing your preferences. Your feedback will help us improve LLM matchmaking systems and how they are presented to users.</p>
 
             <h3 className="text-lg font-semibold mt-4">Settings</h3>
@@ -1081,13 +1385,41 @@ const App: React.FC = () => {
 
   // INTERACTION PHASE
   if (phase === 'interaction') {
+    // Show tutorial modal
+    if (showInteractionTutorial) {
+      return (
+        <div className="min-h-screen bg-gray-50">
+          {renderTutorialModal()}
+        </div>
+      );
+    }
+
     if (init) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
           <div className="max-w-lg w-full p-8 bg-white shadow-xl rounded-2xl text-center">
+            {/* Stage Introduction */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 mb-6 text-left">
+              <div className="flex items-center gap-2 mb-2">
+                <Target className="text-blue-600" size={20} />
+                <span className="font-bold text-blue-800">Stage 1: Interaction</span>
+              </div>
+              <p className="text-sm text-blue-700">
+                You will ask questions and interact with the system. Based on your inputs and preferences, the system will match you with a suitable model.
+              </p>
+            </div>
+
             <Brain className="mx-auto text-blue-600 mb-4" size={48} />
             <h1 className="text-2xl font-bold mb-2">Ready to Begin</h1>
             <p className="text-sm text-gray-500 mb-4">Budget: ${budgetConstraints.maxCost} • Up to {budgetConstraints.maxRounds} rounds</p>
+
+            {/* Tutorial button */}
+            <button 
+              onClick={() => { setShowInteractionTutorial(true); setTutorialStep(0); }}
+              className="mb-4 text-sm text-blue-600 hover:text-blue-800 underline flex items-center justify-center gap-1 mx-auto"
+            >
+              <HelpCircle size={14} /> View Tutorial Again
+            </button>
 
             {personaGroup === 'traditional' && assignedConstraints.length > 0 && (
               <div className="mb-4 p-4 bg-purple-50 rounded-lg text-left border border-purple-200">
@@ -1285,6 +1617,15 @@ const App: React.FC = () => {
 
   // OPEN TESTING PHASE - Side-by-side comparison
   if (phase === 'openTesting') {
+    // Show tutorial modal
+    if (showTestingTutorial) {
+      return (
+        <div className="min-h-screen bg-gray-50">
+          {renderTutorialModal()}
+        </div>
+      );
+    }
+
     const canChat = sideBySideRounds.length < OPEN_TESTING_MAX_ROUNDS;
 
     return (
@@ -1292,16 +1633,40 @@ const App: React.FC = () => {
         <header className="bg-white border-b p-4">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold">Compare Both Models Side-by-Side</h1>
-              <p className="text-sm text-gray-500">Test both models with the same prompt (up to {OPEN_TESTING_MAX_ROUNDS} rounds)</p>
+              <h1 className="text-xl font-bold">Stage 2: Test & Compare</h1>
+              <p className="text-sm text-gray-500">Test both matched models side-by-side ({sideBySideRounds.length}/{OPEN_TESTING_MAX_ROUNDS} rounds)</p>
             </div>
-            <button onClick={() => setPhase('evaluation')} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700">
-              I'm Done → Rate Systems
-            </button>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => { setShowTestingTutorial(true); setTutorialStep(0); }}
+                className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+              >
+                <HelpCircle size={14} /> Tutorial
+              </button>
+              <button 
+                onClick={() => setPhase('evaluation')} 
+                disabled={!hasTestedModels}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                I'm Done → Rate Systems
+              </button>
+            </div>
           </div>
         </header>
         
         <main className="flex-grow max-w-7xl mx-auto w-full p-4 flex flex-col gap-4">
+          {/* Stage Introduction */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="text-green-600" size={20} />
+              <span className="font-bold text-green-800">Testing Stage</span>
+            </div>
+            <p className="text-sm text-green-700">
+              Now test both matched models by sending the same prompt to both. Compare their outputs side-by-side to determine which system found a better model for you. 
+              <strong> You must test at least once before rating.</strong>
+            </p>
+          </div>
+
           {/* Instructions */}
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             <p className="text-sm text-yellow-800">
@@ -1338,9 +1703,19 @@ const App: React.FC = () => {
 
           {error && <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">{error}</div>}
 
+          {/* Progress indicator */}
+          {!hasTestedModels && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+              <p className="text-sm text-amber-800">
+                ⚠️ <strong>Required:</strong> Test the models at least once before proceeding to rating.
+              </p>
+            </div>
+          )}
+
           {/* Round counter */}
           <div className="text-center text-sm text-gray-500">
             Rounds: {sideBySideRounds.length} / {OPEN_TESTING_MAX_ROUNDS}
+            {hasTestedModels && <span className="ml-2 text-green-600">✓ Ready to rate</span>}
           </div>
 
           {/* Side-by-side comparison rounds */}
@@ -1548,7 +1923,7 @@ const App: React.FC = () => {
             {/* Rating cards with optional model info for traditional group */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
               <div className="space-y-4">
-                {renderEvalCard("System A", systemACost, evalRatingA, setEvalRatingA, cupidWins)}
+                {renderEvalCard("System A", systemACost, evalRatingA, setEvalRatingA, evalBudgetRatingA, setEvalBudgetRatingA, cupidWins)}
                 {/* Model info for traditional group */}
                 {personaGroup === 'traditional' && finalCupidStats && (
                   <div className="bg-white border rounded-xl p-4">
@@ -1568,7 +1943,7 @@ const App: React.FC = () => {
               </div>
               
               <div className="space-y-4">
-                {renderEvalCard("System B", systemBCost, evalRatingB, setEvalRatingB, baselineWins)}
+                {renderEvalCard("System B", systemBCost, evalRatingB, setEvalRatingB, evalBudgetRatingB, setEvalBudgetRatingB, baselineWins)}
                 {/* Model info for traditional group */}
                 {personaGroup === 'traditional' && finalBaselineStats && (
                   <div className="bg-white border rounded-xl p-4">
@@ -1602,12 +1977,17 @@ const App: React.FC = () => {
                 </button>
                 <button 
                   onClick={handleFinalSubmit} 
-                  disabled={evalRatingA === 0 || evalRatingB === 0} 
+                  disabled={evalRatingA === 0 || evalRatingB === 0 || evalBudgetRatingA === 0 || evalBudgetRatingB === 0 || !hasTestedModels} 
                   className="flex-1 bg-blue-600 text-white py-4 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center"
                 >
                   Submit & Finish <ArrowRight className="ml-2" size={18} />
                 </button>
               </div>
+              {!hasTestedModels && (
+                <p className="text-center text-amber-600 text-sm mt-2">
+                  ⚠️ Please test both models at least once before rating.
+                </p>
+              )}
             </div>
           </div>
         </div>
