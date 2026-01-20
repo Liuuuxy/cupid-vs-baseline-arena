@@ -762,8 +762,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleCalibrationSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCalibrationSubmit = () => {
     if (!demographics.age) { setError("Please enter your age."); return; }
     if (!personaGroup) { setError("Please select a testing mode."); return; }
     if (personaGroup === 'expert' && !selectedExpertSubject) { setError("Please select your area of expertise."); return; }
@@ -1374,9 +1373,13 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <form onSubmit={handleCalibrationSubmit}>
-                <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition text-lg">Start Experiment →</button>
-              </form>
+              <button 
+                type="button" 
+                onClick={handleCalibrationSubmit}
+                className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition text-lg"
+              >
+                Start Experiment →
+              </button>
             </div>
           </div>
         </div>
