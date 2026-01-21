@@ -108,19 +108,19 @@ interface ModelResponse {
 
 interface ModelStats {
   id: number;
-  intelligence: number;
-  speed: number;
-  reasoning: number;
-  input_price: number;
-  output_price: number;
-  context_window: number;
-  max_output: number;
-  text_input: boolean;
-  image_input: boolean;
-  voice_input: boolean;
-  function_calling: boolean;
-  structured_output: boolean;
-  knowledge_cutoff: string;
+  intelligence?: number | null;
+  speed?: number | null;
+  reasoning?: number | null;
+  input_price?: number | null;
+  output_price?: number | null;
+  context_window?: number | null;
+  max_output?: number | null;
+  text_input?: boolean | null;
+  image_input?: boolean | null;
+  voice_input?: boolean | null;
+  function_calling?: boolean | null;
+  structured_output?: boolean | null;
+  knowledge_cutoff?: string | null;
 }
 
 interface ArenaState {
@@ -176,6 +176,14 @@ interface RoundHistory {
   baseline_vote: 'left' | 'right';
   feedback: string;
   timestamp: string;
+  // Cost details for each round
+  cupid_left_cost?: number;
+  cupid_right_cost?: number;
+  baseline_left_cost?: number;
+  baseline_right_cost?: number;
+  routing_cost?: number;
+  cupid_total_cost?: number;  // Running total for cupid system
+  baseline_total_cost?: number;  // Running total for baseline system
 }
 
 interface OpenTestMessage {
@@ -210,7 +218,7 @@ function sampleBudget(): BudgetConstraints {
 }
 
 // --- CONSTRAINT SAMPLING (Based on Constraint_Picker.ipynb) ---
-// Objective columns that can be used for constraints
+// Objective columns that can be used for constraints (matches model card attributes)
 const OBJECTIVE_COLUMNS = [
   { key: 'intelligence', displayName: 'Intelligence Rating', unit: '', isCost: false },
   { key: 'speed', displayName: 'Speed Rating', unit: '', isCost: false },
@@ -221,39 +229,23 @@ const OBJECTIVE_COLUMNS = [
   { key: 'max_output', displayName: 'Max Output', unit: 'tokens', isCost: false },
 ];
 
-// Model pool data for constraint sampling (simplified version)
-// In production, this would come from the backend
-const MODEL_POOL_DATA = [
-  { id: 1, intelligence: 3, speed: 3, reasoning: 0, input_price: 5, output_price: 15, context_window: 128000, max_output: 16384 },
-  { id: 2, intelligence: 4, speed: 3, reasoning: 0, input_price: 2, output_price: 8, context_window: 1047576, max_output: 32768 },
-  { id: 3, intelligence: 4, speed: 3, reasoning: 1, input_price: 1.1, output_price: 4.4, context_window: 200000, max_output: 100000 },
-  { id: 4, intelligence: 1, speed: 2, reasoning: 0, input_price: 3, output_price: 4, context_window: 16385, max_output: 4096 },
-  { id: 5, intelligence: 1, speed: 2, reasoning: 0, input_price: 1.5, output_price: 2, context_window: 4096, max_output: 4096 },
-  { id: 6, intelligence: 1, speed: 2, reasoning: 0, input_price: 0.5, output_price: 1.5, context_window: 16385, max_output: 4096 },
-  { id: 7, intelligence: 2, speed: 3, reasoning: 0, input_price: 10, output_price: 30, context_window: 128000, max_output: 4096 },
-  { id: 8, intelligence: 2, speed: 3, reasoning: 0, input_price: 10, output_price: 30, context_window: 128000, max_output: 4096 },
-  { id: 9, intelligence: 3, speed: 4, reasoning: 0, input_price: 0.4, output_price: 1.6, context_window: 1047576, max_output: 32768 },
-  { id: 10, intelligence: 2, speed: 5, reasoning: 0, input_price: 0.1, output_price: 0.4, context_window: 1047576, max_output: 32768 },
-  { id: 11, intelligence: 2, speed: 3, reasoning: 0, input_price: 30, output_price: 60, context_window: 8192, max_output: 8192 },
-  { id: 12, intelligence: 3, speed: 3, reasoning: 0, input_price: 2.5, output_price: 10, context_window: 128000, max_output: 16384 },
-  { id: 13, intelligence: 2, speed: 4, reasoning: 0, input_price: 0.15, output_price: 0.6, context_window: 128000, max_output: 16384 },
-  { id: 14, intelligence: 2, speed: 4, reasoning: 0, input_price: 0.15, output_price: 0.6, context_window: 128000, max_output: 16384 },
-  { id: 15, intelligence: 3, speed: 3, reasoning: 0, input_price: 2.5, output_price: 10, context_window: 128000, max_output: 16384 },
-  { id: 16, intelligence: 2, speed: 4, reasoning: 0, input_price: 0.15, output_price: 0.6, context_window: 128000, max_output: 16384 },
-  { id: 17, intelligence: 3, speed: 4, reasoning: 1, input_price: 0.25, output_price: 2, context_window: 400000, max_output: 128000 },
-  { id: 18, intelligence: 2, speed: 5, reasoning: 1, input_price: 0.05, output_price: 0.4, context_window: 400000, max_output: 128000 },
-  { id: 19, intelligence: 3, speed: 3, reasoning: 0, input_price: 2.5, output_price: 10, context_window: 128000, max_output: 16384 },
-  { id: 20, intelligence: 4, speed: 4, reasoning: 1, input_price: 1.25, output_price: 10, context_window: 400000, max_output: 128000 },
-  { id: 21, intelligence: 4, speed: 3, reasoning: 1, input_price: 1.25, output_price: 10, context_window: 400000, max_output: 128000 },
-  { id: 22, intelligence: 4, speed: 3, reasoning: 1, input_price: 1.1, output_price: 4.4, context_window: 200000, max_output: 100000 },
-  { id: 23, intelligence: 5, speed: 1, reasoning: 1, input_price: 2, output_price: 8, context_window: 200000, max_output: 100000 },
-  { id: 24, intelligence: 4, speed: 4, reasoning: 1, input_price: 1.75, output_price: 14, context_window: 400000, max_output: 128000 },
-  { id: 25, intelligence: 4, speed: 4, reasoning: 1, input_price: 1.75, output_price: 14, context_window: 400000, max_output: 128000 },
-];
+// Model pool data type
+interface ModelPoolStats {
+  id: number;
+  intelligence: number | null;
+  speed: number | null;
+  reasoning: number | null;
+  input_price: number | null;
+  output_price: number | null;
+  context_window: number | null;
+  max_output: number | null;
+}
 
 // Sample constraints using min-max rule from Constraint_Picker.ipynb
-function sampleConstraintsDynamic(nObjectives: number = 3, kSamples: number = 5): Constraint[] {
+function sampleConstraintsDynamic(modelPoolData: ModelPoolStats[], nObjectives: number = 3, kSamples: number = 5): Constraint[] {
   const constraints: Constraint[] = [];
+  
+  if (modelPoolData.length === 0) return constraints;
   
   // Shuffle and pick n objective columns
   const shuffled = [...OBJECTIVE_COLUMNS].sort(() => Math.random() - 0.5);
@@ -261,7 +253,7 @@ function sampleConstraintsDynamic(nObjectives: number = 3, kSamples: number = 5)
   
   for (const col of selectedCols) {
     // Get all values for this column from model pool
-    const values = MODEL_POOL_DATA.map(m => (m as any)[col.key]).filter(v => v !== undefined && v !== null);
+    const values = modelPoolData.map(m => (m as any)[col.key]).filter(v => v !== undefined && v !== null);
     
     if (values.length === 0) continue;
     
@@ -300,12 +292,6 @@ function sampleConstraintsDynamic(nObjectives: number = 3, kSamples: number = 5)
   }
   
   return constraints;
-}
-
-function sampleConstraints(): Constraint[] {
-  // Sample 2-4 constraints randomly
-  const numConstraints = 2 + Math.floor(Math.random() * 3); // 2, 3, or 4
-  return sampleConstraintsDynamic(numConstraints, 5);
 }
 
 function formatConstraint(c: Constraint): string {
@@ -412,6 +398,10 @@ const App: React.FC = () => {
   const [sessionId, setSessionId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
+  // Model pool data fetched from backend for constraint sampling
+  const [modelPoolData, setModelPoolData] = useState<ModelPoolStats[]>([]);
+  const [modelPoolLoading, setModelPoolLoading] = useState<boolean>(true);
+
   const [personaGroup, setPersonaGroup] = useState<PersonaGroup | null>(null);
   const [selectedExpertSubject, setSelectedExpertSubject] = useState<string | null>(null);
   const [assignedConstraints, setAssignedConstraints] = useState<Constraint[]>([]);
@@ -474,6 +464,28 @@ const App: React.FC = () => {
   // Gate for rating - must have tested at least once
   const [hasTestedModels, setHasTestedModels] = useState<boolean>(false);
 
+  // Download reminder state
+  const [showDownloadReminder, setShowDownloadReminder] = useState<boolean>(false);
+  const [hasDownloaded, setHasDownloaded] = useState<boolean>(false);
+
+  // Fetch model pool data from backend on mount
+  useEffect(() => {
+    const fetchModelPool = async () => {
+      try {
+        const response = await fetch(`${API_URL}/model-pool-stats`);
+        if (response.ok) {
+          const data = await response.json();
+          setModelPoolData(data.models || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch model pool stats:', err);
+      } finally {
+        setModelPoolLoading(false);
+      }
+    };
+    fetchModelPool();
+  }, []);
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [phase, arenaState?.round, init]);
@@ -528,7 +540,15 @@ const App: React.FC = () => {
           baseline_right_id: arenaState.baseline_pair.right.model_id,
           baseline_vote: baselineVote,
           feedback: feedbackA,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          // Cost details
+          cupid_left_cost: arenaState.cupid_pair.left.cost,
+          cupid_right_cost: arenaState.cupid_pair.right.cost,
+          baseline_left_cost: arenaState.baseline_pair.left.cost,
+          baseline_right_cost: arenaState.baseline_pair.right.cost,
+          routing_cost: arenaState.routing_cost,
+          cupid_total_cost: arenaState.cupid_cost,
+          baseline_total_cost: arenaState.baseline_cost,
         };
         setRoundHistory(prev => [...prev, historyEntry]);
       }
@@ -751,7 +771,9 @@ const App: React.FC = () => {
     setPersonaGroup(group);
 
     if (group === 'traditional') {
-      const constraints = sampleConstraints();
+      // Sample 2-4 constraints using backend model pool data
+      const numConstraints = 2 + Math.floor(Math.random() * 3); // 2, 3, or 4
+      const constraints = sampleConstraintsDynamic(modelPoolData, numConstraints, 5);
       setAssignedConstraints(constraints);
     } else {
       setAssignedConstraints([]);
@@ -822,7 +844,15 @@ const App: React.FC = () => {
         round: arenaState.round, prompt: prompt,
         cupid_left_id: arenaState.cupid_pair.left.model_id, cupid_right_id: arenaState.cupid_pair.right.model_id, cupid_vote: cupidVote,
         baseline_left_id: arenaState.baseline_pair.left.model_id, baseline_right_id: arenaState.baseline_pair.right.model_id, baseline_vote: baselineVote,
-        feedback: feedbackA, timestamp: new Date().toISOString()
+        feedback: feedbackA, timestamp: new Date().toISOString(),
+        // Cost details
+        cupid_left_cost: arenaState.cupid_pair.left.cost,
+        cupid_right_cost: arenaState.cupid_pair.right.cost,
+        baseline_left_cost: arenaState.baseline_pair.left.cost,
+        baseline_right_cost: arenaState.baseline_pair.right.cost,
+        routing_cost: arenaState.routing_cost,
+        cupid_total_cost: arenaState.cupid_cost,
+        baseline_total_cost: arenaState.baseline_cost,
       };
       setRoundHistory(prev => [...prev, historyEntry]);
     }
@@ -849,7 +879,15 @@ const App: React.FC = () => {
           round: arenaState.round, prompt: prompt,
           cupid_left_id: arenaState.cupid_pair.left.model_id, cupid_right_id: arenaState.cupid_pair.right.model_id, cupid_vote: cupidVote,
           baseline_left_id: arenaState.baseline_pair.left.model_id, baseline_right_id: arenaState.baseline_pair.right.model_id, baseline_vote: baselineVote,
-          feedback: feedbackA, timestamp: new Date().toISOString()
+          feedback: feedbackA, timestamp: new Date().toISOString(),
+          // Cost details
+          cupid_left_cost: arenaState.cupid_pair.left.cost,
+          cupid_right_cost: arenaState.cupid_pair.right.cost,
+          baseline_left_cost: arenaState.baseline_pair.left.cost,
+          baseline_right_cost: arenaState.baseline_pair.right.cost,
+          routing_cost: arenaState.routing_cost,
+          cupid_total_cost: arenaState.cupid_cost,
+          baseline_total_cost: arenaState.baseline_cost,
         };
         setRoundHistory(prev => [...prev, historyEntry]);
       }
@@ -867,20 +905,96 @@ const App: React.FC = () => {
     await fetchNextRound(false, nextPrompt);
   };
 
-  const handleFinalSubmit = async () => { await saveSessionData(); setFinished(true); };
+  const handleFinalSubmit = async () => { 
+    await saveSessionData(); 
+    // Show download reminder before finishing
+    setShowDownloadReminder(true);
+  };
+
+  const handleDownloadAndFinish = () => {
+    downloadResults();
+    setHasDownloaded(true);
+  };
+
+  const handleFinishStudy = () => {
+    setShowDownloadReminder(false);
+    setFinished(true);
+  };
 
   const downloadResults = () => {
-    const systemACost = (arenaState?.cupid_cost || 0) + (arenaState?.routing_cost || 0);
-    const systemBCost = arenaState?.baseline_cost || 0;
+    // Get the final model info for each system
+    // For cupid (System A): use the last voted model from history
+    const lastRound = roundHistory[roundHistory.length - 1];
+    const cupidFinalModelId = lastRound ? 
+      (lastRound.cupid_vote === 'left' ? lastRound.cupid_left_id : lastRound.cupid_right_id) : null;
+    const baselineFinalModelId = lastRound ?
+      (lastRound.baseline_vote === 'left' ? lastRound.baseline_left_id : lastRound.baseline_right_id) : null;
+    
+    // Get final model stats
+    const cupidFinalStats = arenaState?.cupid_pair?.left_stats || arenaState?.cupid_pair?.right_stats;
+    const baselineFinalStats = arenaState?.baseline_pair?.left_stats || arenaState?.baseline_pair?.right_stats;
+    
+    // Calculate total costs from history (interaction phase only)
+    const interactionPhaseCupidCost = roundHistory.length > 0 ? 
+      (roundHistory[roundHistory.length - 1].cupid_total_cost || 0) : 0;
+    const interactionPhaseBaselineCost = roundHistory.length > 0 ? 
+      (roundHistory[roundHistory.length - 1].baseline_total_cost || 0) : 0;
+    const interactionPhaseRoutingCost = roundHistory.reduce((sum, r) => sum + (r.routing_cost || 0), 0);
+    
+    // Open testing costs
+    const openTestCostA = sideBySideRounds.reduce((sum, r) => sum + r.costA, 0);
+    const openTestCostB = sideBySideRounds.reduce((sum, r) => sum + r.costB, 0);
     
     const results = {
       session_id: sessionId, 
+      timestamp: new Date().toISOString(),
       demographics, 
       persona_group: personaGroup,
       expert_subject: selectedExpertSubject, 
       constraints: assignedConstraints,
       budget: budgetConstraints, 
+      
+      // Comprehensive final state
+      final_state: {
+        system_a: {
+          label: 'System A (CUPID)',
+          algorithm: 'CUPID (Pairwise GP with language feedback routing)',
+          final_model_id: cupidFinalModelId,
+          final_model_name: arenaState?.final_model_a?.model_name || null,
+          final_model_stats: cupidFinalStats || null,
+          interaction_phase_cost: interactionPhaseCupidCost,
+          routing_cost_total: interactionPhaseRoutingCost,
+          interaction_phase_cost_with_routing: interactionPhaseCupidCost + interactionPhaseRoutingCost,
+          open_test_rounds: sideBySideRounds.length,
+          open_test_cost: openTestCostA,
+          total_cost: interactionPhaseCupidCost + interactionPhaseRoutingCost + openTestCostA,
+          total_rounds: roundHistory.length,
+        },
+        system_b: {
+          label: 'System B (Baseline)',
+          algorithm: 'Bradley-Terry Baseline',
+          final_model_id: baselineFinalModelId,
+          final_model_name: arenaState?.final_model_b?.model_name || null,
+          final_model_stats: baselineFinalStats || null,
+          interaction_phase_cost: interactionPhaseBaselineCost,
+          open_test_rounds: sideBySideRounds.length,
+          open_test_cost: openTestCostB,
+          total_cost: interactionPhaseBaselineCost + openTestCostB,
+          total_rounds: roundHistory.length,
+        },
+        terminated_early: roundHistory.length < budgetConstraints.maxRounds,
+      },
+      
+      // Detailed history with costs
       history: roundHistory,
+      
+      // Side-by-side testing data
+      open_testing: {
+        rounds: sideBySideRounds.length,
+        data: sideBySideRounds,
+      },
+      
+      // Evaluation ratings
       evaluation: { 
         quality_rating_a: evalRatingA, 
         quality_rating_b: evalRatingB, 
@@ -888,37 +1002,15 @@ const App: React.FC = () => {
         budget_rating_b: evalBudgetRatingB,
         comment: evalComment 
       },
-      final_costs: { 
-        system_a: systemACost, 
-        system_b: systemBCost 
-      },
-      open_test_rounds: { 
-        system_a: openTestRoundsA, 
-        system_b: openTestRoundsB,
-        side_by_side_rounds: sideBySideRounds.length
-      },
-      side_by_side_test_data: sideBySideRounds,
-      // Add cupid and baseline labels for clarity
-      cupid: {
-        label: 'System A',
-        algorithm: 'CUPID (Pairwise GP with routing)',
-        total_cost: arenaState?.cupid_cost || 0,
-        routing_cost: arenaState?.routing_cost || 0,
-        quality_rating: evalRatingA,
-        budget_rating: evalBudgetRatingA
-      },
-      baseline: {
-        label: 'System B',
-        algorithm: 'Bradley-Terry Baseline',
-        total_cost: arenaState?.baseline_cost || 0,
-        quality_rating: evalRatingB,
-        budget_rating: evalBudgetRatingB
-      }
     };
+    
     const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `llm_matching_results_${sessionId}.json`; a.click();
+    a.href = url; 
+    a.download = `llm_matching_results_${sessionId}.json`; 
+    a.click();
+    setHasDownloaded(true);
   };
 
   const getModelStats = (system: 'cupid' | 'baseline', side: 'left' | 'right'): ModelStats | null => {
@@ -945,23 +1037,23 @@ const App: React.FC = () => {
               <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg">
                 <h4 className="font-bold text-gray-700 mb-3">Performance Ratings</h4>
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="text-center"><div className="text-2xl font-bold text-purple-600">{stats.intelligence || '—'}</div><div className="text-xs text-gray-500">Intelligence</div></div>
-                  <div className="text-center"><div className="text-2xl font-bold text-blue-600">{stats.speed || '—'}</div><div className="text-xs text-gray-500">Speed</div></div>
+                  <div className="text-center"><div className="text-2xl font-bold text-purple-600">{stats.intelligence ?? '—'}</div><div className="text-xs text-gray-500">Intelligence</div></div>
+                  <div className="text-center"><div className="text-2xl font-bold text-blue-600">{stats.speed ?? '—'}</div><div className="text-xs text-gray-500">Speed</div></div>
                   <div className="text-center"><div className="text-2xl font-bold text-indigo-600">{stats.reasoning ? 'Yes' : 'No'}</div><div className="text-xs text-gray-500">Reasoning</div></div>
                 </div>
               </div>
               <div className="bg-green-50 p-4 rounded-lg">
                 <h4 className="font-bold text-gray-700 mb-3">Pricing (per 1M tokens)</h4>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><div className="text-lg font-bold text-green-600">${stats.input_price || '—'}</div><div className="text-xs text-gray-500">Input Cost</div></div>
-                  <div><div className="text-lg font-bold text-green-700">${stats.output_price || '—'}</div><div className="text-xs text-gray-500">Output Cost</div></div>
+                  <div><div className="text-lg font-bold text-green-600">${stats.input_price ?? '—'}</div><div className="text-xs text-gray-500">Input Cost</div></div>
+                  <div><div className="text-lg font-bold text-green-700">${stats.output_price ?? '—'}</div><div className="text-xs text-gray-500">Output Cost</div></div>
                 </div>
               </div>
               <div className="bg-orange-50 p-4 rounded-lg">
                 <h4 className="font-bold text-gray-700 mb-3">Capacity</h4>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><div className="text-lg font-bold text-orange-600">{stats.context_window?.toLocaleString() || '—'}</div><div className="text-xs text-gray-500">Context Window</div></div>
-                  <div><div className="text-lg font-bold text-orange-700">{stats.max_output?.toLocaleString() || '—'}</div><div className="text-xs text-gray-500">Max Output</div></div>
+                  <div><div className="text-lg font-bold text-orange-600">{stats.context_window?.toLocaleString() ?? '—'}</div><div className="text-xs text-gray-500">Context Window</div></div>
+                  <div><div className="text-lg font-bold text-orange-700">{stats.max_output?.toLocaleString() ?? '—'}</div><div className="text-xs text-gray-500">Max Output</div></div>
                 </div>
               </div>
               <div className="bg-gray-50 p-4 rounded-lg">
@@ -982,13 +1074,35 @@ const App: React.FC = () => {
 
   // Model Card with Markdown rendering
   const renderModelCard = (side: 'left' | 'right', data: ModelResponse | undefined, voteState: 'left' | 'right' | null, setVote: (v: 'left' | 'right') => void, colorClass: string, system: 'cupid' | 'baseline') => {
-    if (!data) return <div className="animate-pulse h-64 bg-gray-100 rounded-lg flex items-center justify-center"><span className="text-gray-400">Loading...</span></div>;
     const isSelected = voteState === side;
     const label = side === 'left' ? '1' : '2';
     const borderColor = isSelected ? 'border-blue-600' : 'border-gray-200 hover:border-gray-300';
     const bgColor = isSelected ? 'bg-blue-50' : 'bg-white';
     const buttonBg = isSelected ? 'bg-blue-600' : 'bg-gray-100';
     const stats = getModelStats(system, side);
+
+    // Show loading state if data not available
+    if (!data) {
+      return (
+        <div className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col ${borderColor} ${bgColor}`}>
+          <div className="animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
+            <div className="h-32 bg-gray-100 rounded mb-3"></div>
+            {personaGroup === 'traditional' && (
+              <div className="border-t pt-3 mt-2">
+                <div className="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1">
+                  <Info size={12} /> Model Specifications
+                </div>
+                <div className="text-xs text-gray-400 italic p-2 bg-gray-50 rounded">
+                  Loading model specifications...
+                </div>
+              </div>
+            )}
+            <div className="h-10 bg-gray-200 rounded mt-3"></div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col ${borderColor} ${bgColor} ${isSelected ? 'shadow-lg scale-[1.01]' : ''}`}>
@@ -998,7 +1112,7 @@ const App: React.FC = () => {
           <div className="group relative">
             <span className="text-xs text-gray-400 cursor-help flex items-center gap-1">
               <DollarSign size={12} />
-              {data.cost.toFixed(5)}
+              {(data.cost ?? 0).toFixed(5)}
               <Info size={10} className="text-gray-300" />
             </span>
             <div className="absolute right-0 top-full mt-1 w-48 bg-gray-800 text-white text-xs rounded-lg p-2 hidden group-hover:block z-10 shadow-lg">
@@ -1017,45 +1131,51 @@ const App: React.FC = () => {
         </div>
 
         {/* Model Info - Expanded by default for Traditional Group */}
-        {personaGroup === 'traditional' && stats && (
+        {personaGroup === 'traditional' && (
           <div className="border-t pt-3 mt-2">
             <div className="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1">
               <Info size={12} /> Model Specifications
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-purple-50 p-2 rounded">
-                <span className="text-gray-500">Intelligence:</span>
-                <span className="font-bold text-purple-700 ml-1">{stats.intelligence || '—'}</span>
+            {stats ? (
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-purple-50 p-2 rounded">
+                  <span className="text-gray-500">Intelligence:</span>
+                  <span className="font-bold text-purple-700 ml-1">{stats.intelligence ?? '—'}</span>
+                </div>
+                <div className="bg-blue-50 p-2 rounded">
+                  <span className="text-gray-500">Speed:</span>
+                  <span className="font-bold text-blue-700 ml-1">{stats.speed ?? '—'}</span>
+                </div>
+                <div className="bg-indigo-50 p-2 rounded">
+                  <span className="text-gray-500">Reasoning:</span>
+                  <span className="font-bold text-indigo-700 ml-1">{stats.reasoning ? 'Yes' : 'No'}</span>
+                </div>
+                <div className="bg-green-50 p-2 rounded">
+                  <span className="text-gray-500">Input:</span>
+                  <span className="font-bold text-green-700 ml-1">${stats.input_price ?? '—'}/1M</span>
+                </div>
+                <div className="bg-green-50 p-2 rounded">
+                  <span className="text-gray-500">Output:</span>
+                  <span className="font-bold text-green-700 ml-1">${stats.output_price ?? '—'}/1M</span>
+                </div>
+                <div className="bg-orange-50 p-2 rounded">
+                  <span className="text-gray-500">Context:</span>
+                  <span className="font-bold text-orange-700 ml-1">{stats.context_window?.toLocaleString() ?? '—'}</span>
+                </div>
+                <div className="bg-orange-50 p-2 rounded">
+                  <span className="text-gray-500">Max Output:</span>
+                  <span className="font-bold text-orange-700 ml-1">{stats.max_output?.toLocaleString() ?? '—'}</span>
+                </div>
+                <div className="bg-gray-50 p-2 rounded">
+                  <span className="text-gray-500">Func Call:</span>
+                  <span className="font-bold text-gray-700 ml-1">{stats.function_calling ? 'Yes' : 'No'}</span>
+                </div>
               </div>
-              <div className="bg-blue-50 p-2 rounded">
-                <span className="text-gray-500">Speed:</span>
-                <span className="font-bold text-blue-700 ml-1">{stats.speed || '—'}</span>
+            ) : (
+              <div className="text-xs text-gray-400 italic p-2 bg-gray-50 rounded">
+                Model specifications loading...
               </div>
-              <div className="bg-indigo-50 p-2 rounded">
-                <span className="text-gray-500">Reasoning:</span>
-                <span className="font-bold text-indigo-700 ml-1">{stats.reasoning ? 'Yes' : 'No'}</span>
-              </div>
-              <div className="bg-green-50 p-2 rounded">
-                <span className="text-gray-500">Input:</span>
-                <span className="font-bold text-green-700 ml-1">${stats.input_price}/1M</span>
-              </div>
-              <div className="bg-green-50 p-2 rounded">
-                <span className="text-gray-500">Output:</span>
-                <span className="font-bold text-green-700 ml-1">${stats.output_price}/1M</span>
-              </div>
-              <div className="bg-orange-50 p-2 rounded">
-                <span className="text-gray-500">Context:</span>
-                <span className="font-bold text-orange-700 ml-1">{stats.context_window?.toLocaleString() || '—'}</span>
-              </div>
-              <div className="bg-orange-50 p-2 rounded">
-                <span className="text-gray-500">Max Output:</span>
-                <span className="font-bold text-orange-700 ml-1">{stats.max_output?.toLocaleString() || '—'}</span>
-              </div>
-              <div className="bg-gray-50 p-2 rounded">
-                <span className="text-gray-500">Func Call:</span>
-                <span className="font-bold text-gray-700 ml-1">{stats.function_calling ? 'Yes' : 'No'}</span>
-              </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -1802,6 +1922,79 @@ const App: React.FC = () => {
 
   // EVALUATION PHASE
   if (phase === 'evaluation') {
+    // Download Reminder Modal
+    if (showDownloadReminder) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+          <div className="max-w-lg w-full bg-white shadow-2xl rounded-2xl overflow-hidden">
+            {/* Header with important notice */}
+            <div className="bg-gradient-to-r from-orange-500 to-red-500 p-6 text-white text-center">
+              <AlertCircle className="mx-auto mb-3" size={48} />
+              <h1 className="text-2xl font-bold">Important: Save Your Results!</h1>
+              <p className="opacity-90 mt-2">Please download your results before closing this page</p>
+            </div>
+            
+            <div className="p-8">
+              {/* Step 1: Download */}
+              <div className={`rounded-xl p-6 mb-6 border-2 ${hasDownloaded ? 'bg-green-50 border-green-300' : 'bg-yellow-50 border-yellow-400'}`}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${hasDownloaded ? 'bg-green-500' : 'bg-yellow-500'}`}>
+                    {hasDownloaded ? <CheckCircle size={24} /> : '1'}
+                  </div>
+                  <div>
+                    <span className="font-bold text-gray-800 text-lg">Download Your Results</span>
+                    {hasDownloaded && <span className="ml-2 text-green-600 text-sm font-medium">✓ Downloaded</span>}
+                  </div>
+                </div>
+                <p className="text-sm text-gray-600 mb-4">
+                  Your study data will be saved as a JSON file. You will need to upload this file in the next step.
+                </p>
+                <button 
+                  onClick={handleDownloadAndFinish} 
+                  className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${
+                    hasDownloaded 
+                      ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                      : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 shadow-lg'
+                  }`}
+                >
+                  <Download size={22} /> {hasDownloaded ? 'Download Again' : 'Download JSON File'}
+                </button>
+              </div>
+
+              {/* Warning if not downloaded */}
+              {!hasDownloaded && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                  <p className="text-red-700 text-sm flex items-center gap-2">
+                    <AlertCircle size={16} />
+                    <strong>Warning:</strong> If you close this page without downloading, your data will be lost!
+                  </p>
+                </div>
+              )}
+
+              {/* Continue Button */}
+              <button 
+                onClick={handleFinishStudy}
+                disabled={!hasDownloaded}
+                className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${
+                  hasDownloaded 
+                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                Continue to Upload Instructions <ArrowRight size={22} />
+              </button>
+              
+              {!hasDownloaded && (
+                <p className="text-center text-gray-400 text-sm mt-3">
+                  Please download your results first
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if (finished) return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="max-w-xl w-full bg-white shadow-xl rounded-2xl p-12 text-center">
@@ -1809,33 +2002,36 @@ const App: React.FC = () => {
           <h1 className="text-3xl font-bold mb-2">Thank You!</h1>
           <p className="text-gray-600 mb-6">Your feedback helps us improve LLM matchmaking systems.</p>
           
-          {/* Step 1: Download */}
-          <div className="bg-gray-50 rounded-xl p-6 mb-6 text-left">
+          {/* Download reminder with highlighted styling */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 mb-6 text-left border-2 border-green-300">
             <div className="flex items-center gap-2 mb-3">
-              <div className="bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold">1</div>
-              <span className="font-bold text-gray-800">Download your results</span>
+              <CheckCircle className="text-green-500" size={24} />
+              <span className="font-bold text-gray-800">Results Downloaded</span>
             </div>
-            <button onClick={downloadResults} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 flex items-center justify-center gap-2">
-              <Download size={18} /> Download JSON File
+            <p className="text-sm text-gray-600 mb-4">
+              Your results file has been downloaded. Please upload it to complete the study.
+            </p>
+            <button onClick={downloadResults} className="w-full bg-green-100 text-green-700 py-3 rounded-lg font-bold hover:bg-green-200 flex items-center justify-center gap-2 transition">
+              <Download size={18} /> Download Again (if needed)
             </button>
           </div>
 
-          {/* Step 2: Upload to Survey */}
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 mb-6 text-left border border-green-200">
+          {/* Upload to Survey - Highlighted */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 mb-6 text-left border-2 border-blue-400 shadow-lg">
             <div className="flex items-center gap-2 mb-3">
-              <div className="bg-green-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold">2</div>
-              <span className="font-bold text-gray-800">Submit your results (anonymous)</span>
+              <div className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">→</div>
+              <span className="font-bold text-gray-800 text-lg">Final Step: Upload Your Results</span>
             </div>
             <p className="text-sm text-gray-600 mb-4">
-              Please upload the JSON file you just downloaded to our survey. Your submission is <strong>completely anonymous</strong>.
+              Please upload the JSON file you downloaded to our survey. Your submission is <strong>completely anonymous</strong>.
             </p>
             <a 
               href="https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbesl1iMmrT8" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 flex items-center justify-center gap-2 transition"
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 flex items-center justify-center gap-2 transition shadow-lg text-lg"
             >
-              <ArrowRight size={18} /> Go to Survey & Upload
+              <ArrowRight size={20} /> Go to Survey & Upload File
             </a>
           </div>
 
@@ -1929,19 +2125,23 @@ const App: React.FC = () => {
               <div className="space-y-4">
                 {renderEvalCard("System A", systemACost, evalRatingA, setEvalRatingA, evalBudgetRatingA, setEvalBudgetRatingA, cupidWins)}
                 {/* Model info for traditional group */}
-                {personaGroup === 'traditional' && finalCupidStats && (
+                {personaGroup === 'traditional' && (
                   <div className="bg-white border rounded-xl p-4">
                     <h4 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
                       <Info size={14} /> System A - Final Model Specs
                     </h4>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="bg-purple-50 p-2 rounded"><span className="text-gray-500">Intelligence:</span><span className="font-bold text-purple-700 ml-1">{finalCupidStats.intelligence || '—'}</span></div>
-                      <div className="bg-blue-50 p-2 rounded"><span className="text-gray-500">Speed:</span><span className="font-bold text-blue-700 ml-1">{finalCupidStats.speed || '—'}</span></div>
-                      <div className="bg-indigo-50 p-2 rounded"><span className="text-gray-500">Reasoning:</span><span className="font-bold text-indigo-700 ml-1">{finalCupidStats.reasoning ? 'Yes' : 'No'}</span></div>
-                      <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Input:</span><span className="font-bold text-green-700 ml-1">${finalCupidStats.input_price}/1M</span></div>
-                      <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Output:</span><span className="font-bold text-green-700 ml-1">${finalCupidStats.output_price}/1M</span></div>
-                      <div className="bg-orange-50 p-2 rounded"><span className="text-gray-500">Context:</span><span className="font-bold text-orange-700 ml-1">{finalCupidStats.context_window?.toLocaleString() || '—'}</span></div>
-                    </div>
+                    {finalCupidStats ? (
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-purple-50 p-2 rounded"><span className="text-gray-500">Intelligence:</span><span className="font-bold text-purple-700 ml-1">{finalCupidStats.intelligence ?? '—'}</span></div>
+                        <div className="bg-blue-50 p-2 rounded"><span className="text-gray-500">Speed:</span><span className="font-bold text-blue-700 ml-1">{finalCupidStats.speed ?? '—'}</span></div>
+                        <div className="bg-indigo-50 p-2 rounded"><span className="text-gray-500">Reasoning:</span><span className="font-bold text-indigo-700 ml-1">{finalCupidStats.reasoning ? 'Yes' : 'No'}</span></div>
+                        <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Input:</span><span className="font-bold text-green-700 ml-1">${finalCupidStats.input_price ?? '—'}/1M</span></div>
+                        <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Output:</span><span className="font-bold text-green-700 ml-1">${finalCupidStats.output_price ?? '—'}/1M</span></div>
+                        <div className="bg-orange-50 p-2 rounded"><span className="text-gray-500">Context:</span><span className="font-bold text-orange-700 ml-1">{finalCupidStats.context_window?.toLocaleString() ?? '—'}</span></div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-400 italic">Model specifications not available</div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1949,19 +2149,23 @@ const App: React.FC = () => {
               <div className="space-y-4">
                 {renderEvalCard("System B", systemBCost, evalRatingB, setEvalRatingB, evalBudgetRatingB, setEvalBudgetRatingB, baselineWins)}
                 {/* Model info for traditional group */}
-                {personaGroup === 'traditional' && finalBaselineStats && (
+                {personaGroup === 'traditional' && (
                   <div className="bg-white border rounded-xl p-4">
                     <h4 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
                       <Info size={14} /> System B - Final Model Specs
                     </h4>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="bg-purple-50 p-2 rounded"><span className="text-gray-500">Intelligence:</span><span className="font-bold text-purple-700 ml-1">{finalBaselineStats.intelligence || '—'}</span></div>
-                      <div className="bg-blue-50 p-2 rounded"><span className="text-gray-500">Speed:</span><span className="font-bold text-blue-700 ml-1">{finalBaselineStats.speed || '—'}</span></div>
-                      <div className="bg-indigo-50 p-2 rounded"><span className="text-gray-500">Reasoning:</span><span className="font-bold text-indigo-700 ml-1">{finalBaselineStats.reasoning ? 'Yes' : 'No'}</span></div>
-                      <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Input:</span><span className="font-bold text-green-700 ml-1">${finalBaselineStats.input_price}/1M</span></div>
-                      <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Output:</span><span className="font-bold text-green-700 ml-1">${finalBaselineStats.output_price}/1M</span></div>
-                      <div className="bg-orange-50 p-2 rounded"><span className="text-gray-500">Context:</span><span className="font-bold text-orange-700 ml-1">{finalBaselineStats.context_window?.toLocaleString() || '—'}</span></div>
-                    </div>
+                    {finalBaselineStats ? (
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-purple-50 p-2 rounded"><span className="text-gray-500">Intelligence:</span><span className="font-bold text-purple-700 ml-1">{finalBaselineStats.intelligence ?? '—'}</span></div>
+                        <div className="bg-blue-50 p-2 rounded"><span className="text-gray-500">Speed:</span><span className="font-bold text-blue-700 ml-1">{finalBaselineStats.speed ?? '—'}</span></div>
+                        <div className="bg-indigo-50 p-2 rounded"><span className="text-gray-500">Reasoning:</span><span className="font-bold text-indigo-700 ml-1">{finalBaselineStats.reasoning ? 'Yes' : 'No'}</span></div>
+                        <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Input:</span><span className="font-bold text-green-700 ml-1">${finalBaselineStats.input_price ?? '—'}/1M</span></div>
+                        <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Output:</span><span className="font-bold text-green-700 ml-1">${finalBaselineStats.output_price ?? '—'}/1M</span></div>
+                        <div className="bg-orange-50 p-2 rounded"><span className="text-gray-500">Context:</span><span className="font-bold text-orange-700 ml-1">{finalBaselineStats.context_window?.toLocaleString() ?? '—'}</span></div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-400 italic">Model specifications not available</div>
+                    )}
                   </div>
                 )}
               </div>
