@@ -337,7 +337,7 @@ const INTERACTION_TUTORIAL_STEPS = [
     icon: '💬'
   },
   {
-    title: 'Review Model Information',
+    title: 'Review Model Specification', // UPDATED TERM
     description: 'Check the model specifications (intelligence, speed, price, etc.) to see if they match your requirements. This helps you make informed decisions.',
     icon: '📋'
   },
@@ -789,156 +789,29 @@ const App: React.FC = () => {
     if (!personaGroup) { setError("Please select a testing mode."); return; }
     if (personaGroup === 'expert' && !selectedExpertSubject) { setError("Please select your area of expertise."); return; }
     setError(null);
-    // Always go to interaction phase, show tutorial if first time
+    setInit(true);
     setPhase('interaction');
-    if (!hasSeenInteractionTutorial) {
-      setShowInteractionTutorial(true);
-      setTutorialStep(0);
-    }
-  };
-
-  const handleSkipTutorial = () => {
-    setShowInteractionTutorial(false);
-    setShowTestingTutorial(false);
-    setHasSeenInteractionTutorial(true);
-    setHasSeenTestingTutorial(true);
-  };
-
-  const handleNextTutorialStep = () => {
-    if (showInteractionTutorial) {
-      if (tutorialStep < INTERACTION_TUTORIAL_STEPS.length - 1) {
-        setTutorialStep(tutorialStep + 1);
-      } else {
-        setShowInteractionTutorial(false);
-        setHasSeenInteractionTutorial(true);
-        setTutorialStep(0);
-        // Phase is already 'interaction', no need to change
-      }
-    } else if (showTestingTutorial) {
-      if (tutorialStep < TESTING_TUTORIAL_STEPS.length - 1) {
-        setTutorialStep(tutorialStep + 1);
-      } else {
-        setShowTestingTutorial(false);
-        setHasSeenTestingTutorial(true);
-        setTutorialStep(0);
-      }
-    }
-  };
-
-  const handlePrevTutorialStep = () => {
-    if (tutorialStep > 0) {
-      setTutorialStep(tutorialStep - 1);
-    }
-  };
-
-  const startSession = async () => {
-    if (!prompt.trim()) { setError("Please enter a query to start."); return; }
-    setError(null);
-    await fetchNextRound(true, prompt);
-    setInit(false);
-  };
-
-  const handleSatisfied = () => {
-    if (arenaState && cupidVote && baselineVote) {
-      const historyEntry: RoundHistory = {
-        round: arenaState.round, prompt: prompt,
-        cupid_left_id: arenaState.cupid_pair.left.model_id, cupid_right_id: arenaState.cupid_pair.right.model_id, cupid_vote: cupidVote,
-        baseline_left_id: arenaState.baseline_pair.left.model_id, baseline_right_id: arenaState.baseline_pair.right.model_id, baseline_vote: baselineVote,
-        feedback: feedbackA, timestamp: new Date().toISOString(),
-        // Cost details
-        cupid_left_cost: arenaState.cupid_pair.left.cost,
-        cupid_right_cost: arenaState.cupid_pair.right.cost,
-        baseline_left_cost: arenaState.baseline_pair.left.cost,
-        baseline_right_cost: arenaState.baseline_pair.right.cost,
-        routing_cost: arenaState.routing_cost,
-        cupid_total_cost: arenaState.cupid_cost,
-        baseline_total_cost: arenaState.baseline_cost,
-      };
-      setRoundHistory(prev => [...prev, historyEntry]);
-    }
-    // Show testing tutorial for first time
-    if (!hasSeenTestingTutorial) {
-      setShowTestingTutorial(true);
-      setTutorialStep(0);
-    }
-    setPhase('openTesting');
-  };
-
-  const handleSubmitRound = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!cupidVote || !baselineVote) { setError("Please select your preferred response from both systems."); return; }
-
-    const systemACost = (arenaState?.cupid_cost || 0) + (arenaState?.routing_cost || 0);
-    const systemBCost = arenaState?.baseline_cost || 0;
-    const totalCost = systemACost + systemBCost;
-    const isLastRound = arenaState && (arenaState.round >= budgetConstraints.maxRounds || totalCost >= budgetConstraints.maxCost);
-
-    if (isLastRound) {
-      if (arenaState && cupidVote && baselineVote) {
-        const historyEntry: RoundHistory = {
-          round: arenaState.round, prompt: prompt,
-          cupid_left_id: arenaState.cupid_pair.left.model_id, cupid_right_id: arenaState.cupid_pair.right.model_id, cupid_vote: cupidVote,
-          baseline_left_id: arenaState.baseline_pair.left.model_id, baseline_right_id: arenaState.baseline_pair.right.model_id, baseline_vote: baselineVote,
-          feedback: feedbackA, timestamp: new Date().toISOString(),
-          // Cost details
-          cupid_left_cost: arenaState.cupid_pair.left.cost,
-          cupid_right_cost: arenaState.cupid_pair.right.cost,
-          baseline_left_cost: arenaState.baseline_pair.left.cost,
-          baseline_right_cost: arenaState.baseline_pair.right.cost,
-          routing_cost: arenaState.routing_cost,
-          cupid_total_cost: arenaState.cupid_cost,
-          baseline_total_cost: arenaState.baseline_cost,
-        };
-        setRoundHistory(prev => [...prev, historyEntry]);
-      }
-      // Show testing tutorial for first time
-      if (!hasSeenTestingTutorial) {
-        setShowTestingTutorial(true);
-        setTutorialStep(0);
-      }
-      setPhase('openTesting');
-      return;
-    }
-
-    if (!nextPrompt.trim()) { setError("Please enter your next query to continue."); return; }
-    setError(null);
-    await fetchNextRound(false, nextPrompt);
   };
 
   const handleFinalSubmit = async () => {
     await saveSessionData();
-    // Show download reminder before finishing
-    setShowDownloadReminder(true);
-  };
-
-  const handleDownloadAndFinish = () => {
-    downloadResults();
-    setHasDownloaded(true);
-  };
-
-  const handleFinishStudy = () => {
-    setShowDownloadReminder(false);
     setFinished(true);
   };
 
-  const downloadResults = () => {
-    // Get the final model info for each system
-    // For cupid (System A): use the last voted model from history
-    const lastRound = roundHistory[roundHistory.length - 1];
-    const cupidFinalModelId = lastRound ?
-      (lastRound.cupid_vote === 'left' ? lastRound.cupid_left_id : lastRound.cupid_right_id) : null;
-    const baselineFinalModelId = lastRound ?
-      (lastRound.baseline_vote === 'left' ? lastRound.baseline_left_id : lastRound.baseline_right_id) : null;
+  const handleDownloadAndFinish = () => {
+    // Generate JSON file
+    const cupidFinalModelId = arenaState?.final_model_a?.model_id;
+    const baselineFinalModelId = arenaState?.final_model_b?.model_id;
 
-    // Get final model stats
-    const cupidFinalStats = arenaState?.cupid_pair?.left_stats || arenaState?.cupid_pair?.right_stats;
-    const baselineFinalStats = arenaState?.baseline_pair?.left_stats || arenaState?.baseline_pair?.right_stats;
+    // Helper to get stats safely
+    const getStats = (id?: number) => modelPoolData.find(m => m.id === id);
 
-    // Calculate total costs from history (interaction phase only)
-    const interactionPhaseCupidCost = roundHistory.length > 0 ?
-      (roundHistory[roundHistory.length - 1].cupid_total_cost || 0) : 0;
-    const interactionPhaseBaselineCost = roundHistory.length > 0 ?
-      (roundHistory[roundHistory.length - 1].baseline_total_cost || 0) : 0;
+    const cupidFinalStats = getStats(cupidFinalModelId);
+    const baselineFinalStats = getStats(baselineFinalModelId);
+
+    // Calculate costs
+    const interactionPhaseCupidCost = (arenaState?.cupid_cost || 0);
+    const interactionPhaseBaselineCost = roundHistory.length > 0 ? (roundHistory[roundHistory.length - 1].baseline_total_cost || 0) : 0;
     const interactionPhaseRoutingCost = roundHistory.reduce((sum, r) => sum + (r.routing_cost || 0), 0);
 
     // Open testing costs
@@ -981,544 +854,401 @@ const App: React.FC = () => {
           open_test_cost: openTestCostB,
           total_cost: interactionPhaseBaselineCost + openTestCostB,
           total_rounds: roundHistory.length,
-        },
-        terminated_early: roundHistory.length < budgetConstraints.maxRounds,
+        }
       },
 
-      // Detailed history with costs
       history: roundHistory,
-
-      // Side-by-side testing data
-      open_testing: {
-        rounds: sideBySideRounds.length,
-        data: sideBySideRounds,
-      },
-
-      // Evaluation ratings
+      open_testing_chat: sideBySideRounds,
       evaluation: {
         quality_rating_a: evalRatingA,
         quality_rating_b: evalRatingB,
         budget_rating_a: evalBudgetRatingA,
         budget_rating_b: evalBudgetRatingB,
         comment: evalComment
-      },
+      }
     };
 
     const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `llm_matching_results_${sessionId}.json`;
+    a.download = `study_results_${sessionId}.json`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     setHasDownloaded(true);
   };
 
-  const getModelStats = (system: 'cupid' | 'baseline', side: 'left' | 'right'): ModelStats | null => {
-    if (!arenaState) return null;
-    const pair = system === 'cupid' ? arenaState.cupid_pair : arenaState.baseline_pair;
-    return side === 'left' ? pair.left_stats || null : pair.right_stats || null;
-  };
-
-  // Model Info Modal
   const renderModelInfoModal = () => {
-    if (!showModelInfo) return null;
-    const stats = getModelStats(showModelInfo.system, showModelInfo.side);
-    const label = showModelInfo.side === 'left' ? '1' : '2';
-    const systemLabel = showModelInfo.system === 'cupid' ? 'System A' : 'System B';
+    if (!showModelInfo || !arenaState) return null;
+
+    // UPDATED: Modal visuals to be cleaner
+    const pair = showModelInfo.system === 'cupid' ? arenaState.cupid_pair : arenaState.baseline_pair;
+    const stats = showModelInfo.side === 'left' ? pair.left_stats : pair.right_stats;
+    const modelName = showModelInfo.side === 'left' ? pair.left.model_name : pair.right.model_name;
+
+    if (!stats) return null;
 
     return (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowModelInfo(null)}>
-        <div className="bg-white rounded-2xl max-w-lg w-full p-6 relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setShowModelInfo(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X size={20} /></button>
-          <h3 className="text-xl font-bold mb-2">{systemLabel} - Option {label}</h3>
-          <p className="text-sm text-gray-500 mb-4">Model specifications from OpenAI (name hidden)</p>
-          {stats ? (
-            <div className="space-y-4">
-              <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg">
-                <h4 className="font-bold text-gray-700 mb-3">Performance Ratings</h4>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="text-center"><div className="text-2xl font-bold text-purple-600">{stats.intelligence ?? '—'}</div><div className="text-xs text-gray-500">Intelligence</div></div>
-                  <div className="text-center"><div className="text-2xl font-bold text-blue-600">{stats.speed ?? '—'}</div><div className="text-xs text-gray-500">Speed</div></div>
-                  <div className="text-center"><div className="text-2xl font-bold text-indigo-600">{stats.reasoning ? 'Yes' : 'No'}</div><div className="text-xs text-gray-500">Reasoning</div></div>
-                </div>
-              </div>
-              <div className="bg-green-50 p-4 rounded-lg">
-                <h4 className="font-bold text-gray-700 mb-3">Pricing (per 1M tokens)</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><div className="text-lg font-bold text-green-600">${stats.input_price ?? '—'}</div><div className="text-xs text-gray-500">Input Cost</div></div>
-                  <div><div className="text-lg font-bold text-green-700">${stats.output_price ?? '—'}</div><div className="text-xs text-gray-500">Output Cost</div></div>
-                </div>
-              </div>
-              <div className="bg-orange-50 p-4 rounded-lg">
-                <h4 className="font-bold text-gray-700 mb-3">Capacity</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><div className="text-lg font-bold text-orange-600">{stats.context_window?.toLocaleString() ?? '—'}</div><div className="text-xs text-gray-500">Context Window</div></div>
-                  <div><div className="text-lg font-bold text-orange-700">{stats.max_output?.toLocaleString() ?? '—'}</div><div className="text-xs text-gray-500">Max Output</div></div>
-                </div>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-bold text-gray-700 mb-3">Capabilities</h4>
-                <div className="flex flex-wrap gap-2">
-                  {stats.text_input && <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded">Text ✓</span>}
-                  {stats.function_calling && <span className="bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded">Function Calling</span>}
-                  {stats.structured_output && <span className="bg-pink-100 text-pink-700 text-xs px-2 py-1 rounded">Structured Output</span>}
-                </div>
-              </div>
-              {stats.knowledge_cutoff && <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg"><span className="font-medium">Knowledge Cutoff:</span> {stats.knowledge_cutoff}</div>}
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowModelInfo(null)}>
+        <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+          <div className="bg-gradient-to-r from-gray-800 to-gray-900 p-4 text-white flex justify-between items-center">
+            <div>
+              <h3 className="font-bold text-lg">Model Specification</h3> {/* UPDATED TERM */}
+              <p className="text-xs text-gray-400 font-mono">{modelName}</p>
             </div>
-          ) : (<div className="text-gray-500 text-center py-8">Stats not available</div>)}
+            <button onClick={() => setShowModelInfo(null)} className="hover:bg-white/20 p-1 rounded transition">
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-4">
+            <div className="bg-purple-50 p-4 rounded-lg">
+              <h4 className="font-bold text-gray-700 mb-3">Performance Ratings</h4>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center"><div className="text-2xl font-bold text-purple-600">{stats.intelligence ?? '—'}</div><div className="text-xs text-gray-500">Intelligence</div></div>
+                <div className="text-center"><div className="text-2xl font-bold text-blue-600">{stats.speed ?? '—'}</div><div className="text-xs text-gray-500">Speed</div></div>
+                <div className="text-center"><div className="text-2xl font-bold text-indigo-600">{stats.reasoning ? 'Yes' : 'No'}</div><div className="text-xs text-gray-500">Reasoning</div></div>
+              </div>
+            </div>
+
+            {/* UPDATED PRICING SECTION */}
+            <div className="bg-green-50 p-4 rounded-lg">
+              <h4 className="font-bold text-gray-700 mb-3">Pricing</h4>
+              <div className="grid grid-cols-1 gap-2">
+                <div className="flex justify-between items-center border-b border-green-100 pb-2">
+                  <div className="text-sm text-gray-600">Input Price</div>
+                  <div className="text-right">
+                    <span className="text-lg font-bold text-green-600">${stats.input_price ?? '—'}</span>
+                    <span className="text-xs text-gray-500 ml-1">/ 1M tokens</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <div className="text-sm text-gray-600">Output Price</div>
+                  <div className="text-right">
+                    <span className="text-lg font-bold text-green-700">${stats.output_price ?? '—'}</span>
+                    <span className="text-xs text-gray-500 ml-1">/ 1M tokens</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-orange-50 p-4 rounded-lg">
+              <h4 className="font-bold text-gray-700 mb-3">Capacity</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div><div className="text-lg font-bold text-orange-600">{stats.context_window?.toLocaleString() ?? '—'}</div><div className="text-xs text-gray-500">Context Window</div></div>
+                <div><div className="text-lg font-bold text-orange-700">{stats.max_output?.toLocaleString() ?? '—'}</div><div className="text-xs text-gray-500">Max Output</div></div>
+              </div>
+            </div>
+
+            <button onClick={() => setShowModelInfo(null)} className="w-full py-3 bg-gray-100 font-bold text-gray-700 rounded-lg hover:bg-gray-200 transition">
+              Close
+            </button>
+          </div>
         </div>
       </div>
     );
   };
 
-  // Model Card with Markdown rendering
-  const renderModelCard = (side: 'left' | 'right', data: ModelResponse | undefined, voteState: 'left' | 'right' | null, setVote: (v: 'left' | 'right') => void, colorClass: string, system: 'cupid' | 'baseline') => {
-    const isSelected = voteState === side;
+  const renderModelCard = (side: 'left' | 'right', data: ModelResponse, vote: 'left' | 'right' | null, setVote: (v: 'left' | 'right') => void, color: string, system: 'cupid' | 'baseline') => {
+    const isSelected = vote === side;
     const label = side === 'left' ? '1' : '2';
-    const borderColor = isSelected ? 'border-blue-600' : 'border-gray-200 hover:border-gray-300';
-    const bgColor = isSelected ? 'bg-blue-50' : 'bg-white';
-    const buttonBg = isSelected ? 'bg-blue-600' : 'bg-gray-100';
-    const stats = getModelStats(system, side);
-
-    // Show loading state if data not available
-    if (!data) {
-      return (
-        <div className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col ${borderColor} ${bgColor}`}>
-          <div className="animate-pulse">
-            <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
-            <div className="h-32 bg-gray-100 rounded mb-3"></div>
-            {personaGroup === 'traditional' && (
-              <div className="border-t pt-3 mt-2">
-                <div className="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1">
-                  <Info size={12} /> Model Specifications
-                </div>
-                <div className="text-xs text-gray-400 italic p-2 bg-gray-50 rounded">
-                  Loading model specifications...
-                </div>
-              </div>
-            )}
-            <div className="h-10 bg-gray-200 rounded mt-3"></div>
-          </div>
-        </div>
-      );
-    }
+    // Access stats safely
+    const pair = system === 'cupid' ? arenaState?.cupid_pair : arenaState?.baseline_pair;
+    const stats = side === 'left' ? pair?.left_stats : pair?.right_stats;
 
     return (
-      <div className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col ${borderColor} ${bgColor} ${isSelected ? 'shadow-lg scale-[1.01]' : ''}`}>
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-xs font-bold text-gray-500">Output {label}</span>
-          {/* Cost with explanation tooltip */}
-          <div className="group relative">
-            <span className="text-xs text-gray-400 cursor-help flex items-center gap-1">
-              <DollarSign size={12} />
-              {(data.cost ?? 0).toFixed(5)}
-              <Info size={10} className="text-gray-300" />
-            </span>
-            <div className="absolute right-0 top-full mt-1 w-48 bg-gray-800 text-white text-xs rounded-lg p-2 hidden group-hover:block z-10 shadow-lg">
-              Cost for this response based on input/output tokens and model pricing (per 1M tokens).
-            </div>
+      <div
+        className={`relative border-2 rounded-xl p-4 transition-all duration-200 flex flex-col h-full bg-white ${isSelected ? `border-${color}-500 shadow-lg bg-${color}-50` : 'border-gray-200 hover:border-gray-300'}`}
+      >
+        <div className="flex justify-between items-start mb-3">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${isSelected ? `bg-${color}-600` : 'bg-gray-400'}`}>
+            {isSelected ? <CheckCircle size={18} /> : label}
           </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowModelInfo({ system, side }); }}
+            className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100 flex items-center gap-1 text-xs"
+            title="View Model Specification" // UPDATED TERM
+          >
+            <Info size={16} /> Specification
+          </button>
         </div>
 
-        {/* Markdown rendered content */}
-        <div onClick={() => setVote(side)} className="flex-grow cursor-pointer overflow-y-auto h-48 md:h-auto md:max-h-64 mb-3">
-          {data.text ? (
-            <Markdown content={data.text} />
-          ) : (
-            <span className="text-gray-400 italic">No response</span>
+        <div className={`flex-grow rounded-lg p-3 mb-3 text-sm leading-relaxed overflow-hidden ${isSelected ? 'bg-white' : 'bg-gray-50'} ${isSelected && color === 'blue' ? 'text-blue-900' : ''} ${isSelected ? 'ring-2 ring-offset-1 ring-' + color + '-200 scale-[1.01]' : ''}`}>
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs font-bold text-gray-500">Output {label}</span>
+            {/* Cost with explanation tooltip */}
+            <div className="group relative">
+              <span className="text-xs text-gray-400 cursor-help flex items-center gap-1">
+                <DollarSign size={12} /> {(data.cost ?? 0).toFixed(5)} <Info size={10} className="text-gray-300" />
+              </span>
+              <div className="absolute right-0 top-full mt-1 w-48 bg-gray-800 text-white text-xs rounded-lg p-2 hidden group-hover:block z-10 shadow-lg">
+                Cost for this response based on input/output tokens and model pricing (per 1M tokens).
+              </div>
+            </div>
+          </div>
+
+          {/* Markdown rendered content */}
+          <div onClick={() => setVote(side)} className="flex-grow cursor-pointer overflow-y-auto h-48 md:h-auto md:max-h-64 mb-3">
+            {data.text ? (
+              <Markdown content={data.text} />
+            ) : (
+              <span className="text-gray-400 italic">No response</span>
+            )}
+          </div>
+
+          {/* Model Info - Expanded by default for Traditional Group */}
+          {personaGroup === 'traditional' && (
+            <div className="border-t pt-3 mt-2">
+              <div className="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1">
+                <Info size={12} /> Model Specification {/* UPDATED TERM */}
+              </div>
+              {stats ? (
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-purple-50 p-2 rounded">
+                    <span className="text-gray-500">Intelligence:</span>
+                    <span className="font-bold text-purple-700 ml-1">{stats.intelligence ?? '—'}</span>
+                  </div>
+                  <div className="bg-blue-50 p-2 rounded">
+                    <span className="text-gray-500">Speed:</span>
+                    <span className="font-bold text-blue-700 ml-1">{stats.speed ?? '—'}</span>
+                  </div>
+                  <div className="bg-green-50 p-2 rounded col-span-2">
+                    <span className="text-gray-500">Price:</span>
+                    <span className="font-bold text-green-700 ml-1">${stats.input_price} / ${stats.output_price}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-gray-400 italic">Model specifications not available</div>
+              )}
+            </div>
           )}
         </div>
-
-        {/* Model Info - Expanded by default for Traditional Group */}
-        {personaGroup === 'traditional' && (
-          <div className="border-t pt-3 mt-2">
-            <div className="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1">
-              <Info size={12} /> Model Specifications
-            </div>
-            {stats ? (
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="bg-purple-50 p-2 rounded">
-                  <span className="text-gray-500">Intelligence:</span>
-                  <span className="font-bold text-purple-700 ml-1">{stats.intelligence ?? '—'}</span>
-                </div>
-                <div className="bg-blue-50 p-2 rounded">
-                  <span className="text-gray-500">Speed:</span>
-                  <span className="font-bold text-blue-700 ml-1">{stats.speed ?? '—'}</span>
-                </div>
-                <div className="bg-indigo-50 p-2 rounded">
-                  <span className="text-gray-500">Reasoning:</span>
-                  <span className="font-bold text-indigo-700 ml-1">{stats.reasoning ? 'Yes' : 'No'}</span>
-                </div>
-                <div className="bg-green-50 p-2 rounded">
-                  <span className="text-gray-500">Input:</span>
-                  <span className="font-bold text-green-700 ml-1">${stats.input_price ?? '—'}/1M</span>
-                </div>
-                <div className="bg-green-50 p-2 rounded">
-                  <span className="text-gray-500">Output:</span>
-                  <span className="font-bold text-green-700 ml-1">${stats.output_price ?? '—'}/1M</span>
-                </div>
-                <div className="bg-orange-50 p-2 rounded">
-                  <span className="text-gray-500">Context:</span>
-                  <span className="font-bold text-orange-700 ml-1">{stats.context_window?.toLocaleString() ?? '—'}</span>
-                </div>
-                <div className="bg-orange-50 p-2 rounded">
-                  <span className="text-gray-500">Max Output:</span>
-                  <span className="font-bold text-orange-700 ml-1">{stats.max_output?.toLocaleString() ?? '—'}</span>
-                </div>
-                <div className="bg-gray-50 p-2 rounded">
-                  <span className="text-gray-500">Func Call:</span>
-                  <span className="font-bold text-gray-700 ml-1">{stats.function_calling ? 'Yes' : 'No'}</span>
-                </div>
-              </div>
-            ) : (
-              <div className="text-xs text-gray-400 italic p-2 bg-gray-50 rounded">
-                Model specifications loading...
-              </div>
-            )}
-          </div>
-        )}
-
-        <div onClick={() => setVote(side)} className={`mt-3 text-center font-bold py-3 rounded-lg cursor-pointer transition ${buttonBg} ${isSelected ? 'text-white' : 'text-gray-400 hover:text-gray-600'}`}>{isSelected ? '✓ PREFERRED' : `Select Output ${label}`}</div>
       </div>
     );
   };
 
-  const renderEvalCard = (systemLabel: string, totalCost: number, rating: number, setRating: (r: number) => void, budgetRating: number, setBudgetRating: (r: number) => void, winCount: number) => (
-    <div className="border-2 border-blue-200 bg-blue-50 rounded-xl p-6 relative overflow-hidden">
-      <div className="absolute top-0 right-0 bg-blue-200 text-blue-800 text-xs font-bold px-3 py-1 rounded-bl-lg">{systemLabel}</div>
-      <div className="space-y-3 mb-6 mt-4">
-        <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center"><span className="text-sm text-gray-500">Total Cost</span><span className="font-mono font-bold text-gray-800 flex items-center"><DollarSign size={14} />{totalCost.toFixed(5)}</span></div>
-        <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center"><span className="text-sm text-gray-500">Times Preferred</span><span className="font-mono font-bold text-gray-800">{winCount} rounds</span></div>
-      </div>
+  // --- RENDERING ---
 
-      {/* Quality Rating */}
-      <div className="mb-6">
-        <label className="block text-sm font-bold text-blue-900 mb-3 text-center">⭐ Rate Model Quality</label>
-        <div className="space-y-2">
-          {RATING_LABELS.map((item) => (
-            <button
-              key={item.value}
-              onClick={() => setRating(item.value)}
-              className={`w-full p-3 rounded-lg text-left transition-all flex items-center gap-3 ${rating === item.value
-                ? 'bg-blue-600 text-white'
-                : 'bg-white border border-gray-200 hover:border-gray-300 text-gray-700'
-                }`}
-            >
-              <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${rating === item.value ? 'bg-white/20' : 'bg-gray-100'
-                }`}>{item.value}</span>
-              <span className="text-sm">{item.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Budget Compliance Rating */}
-      <div>
-        <label className="block text-sm font-bold text-green-800 mb-3 text-center">💰 Rate Budget Compliance</label>
-        <div className="space-y-2">
-          {BUDGET_RATING_LABELS.map((item) => (
-            <button
-              key={item.value}
-              onClick={() => setBudgetRating(item.value)}
-              className={`w-full p-2 rounded-lg text-left transition-all flex items-center gap-3 ${budgetRating === item.value
-                ? 'bg-green-600 text-white'
-                : 'bg-white border border-gray-200 hover:border-gray-300 text-gray-700'
-                }`}
-            >
-              <span className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${budgetRating === item.value ? 'bg-white/20' : 'bg-gray-100'
-                }`}>{item.value}</span>
-              <span className="text-xs">{item.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
-  // Tutorial Modal Component
-  const renderTutorialModal = () => {
-    if (!showInteractionTutorial && !showTestingTutorial) return null;
-
-    const steps = showInteractionTutorial ? INTERACTION_TUTORIAL_STEPS : TESTING_TUTORIAL_STEPS;
-    const currentStep = steps[tutorialStep];
-    const totalSteps = steps.length;
-    const title = showInteractionTutorial ? 'Interaction Tutorial' : 'Testing Tutorial';
-
-    return (
-      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl max-w-lg w-full p-8 relative">
-          {/* Progress indicator */}
-          <div className="flex justify-center gap-2 mb-6">
-            {steps.map((_, idx) => (
-              <div
-                key={idx}
-                className={`w-3 h-3 rounded-full transition-all ${idx === tutorialStep ? 'bg-blue-600 scale-110' : idx < tutorialStep ? 'bg-blue-300' : 'bg-gray-200'}`}
-              />
-            ))}
-          </div>
-
-          {/* Content */}
-          <div className="text-center mb-8">
-            <div className="text-5xl mb-4">{currentStep.icon}</div>
-            <h3 className="text-xl font-bold text-gray-800 mb-3">{currentStep.title}</h3>
-            <p className="text-gray-600 leading-relaxed">{currentStep.description}</p>
-          </div>
-
-          {/* Navigation */}
-          <div className="flex gap-3">
-            {tutorialStep > 0 ? (
-              <button
-                onClick={handlePrevTutorialStep}
-                className="flex-1 py-3 px-4 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 font-medium flex items-center justify-center gap-2"
-              >
-                <ArrowLeft size={18} /> Back
-              </button>
-            ) : (
-              <button
-                onClick={handleSkipTutorial}
-                className="flex-1 py-3 px-4 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 font-medium"
-              >
-                Skip Tutorial
-              </button>
-            )}
-            <button
-              onClick={handleNextTutorialStep}
-              className="flex-1 py-3 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
-            >
-              {tutorialStep === totalSteps - 1 ? (
-                <>Let's Start! <CheckCircle size={18} /></>
-              ) : (
-                <>Next <ArrowRight size={18} /></>
-              )}
-            </button>
-          </div>
-
-          {/* Step counter */}
-          <p className="text-center text-xs text-gray-400 mt-4">
-            Step {tutorialStep + 1} of {totalSteps}
-          </p>
-        </div>
-      </div>
-    );
-  };
-
-  // ==================== PHASE RENDERS ====================
-
-  // CONSENT PHASE
+  // 1. CONSENT & LANDING
   if (phase === 'consent') {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="max-w-3xl w-full bg-white shadow-xl rounded-2xl overflow-hidden flex flex-col">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 md:p-8 text-white text-center">
-            <h1 className="text-2xl md:text-3xl font-bold">LLM Matchmaking Study</h1>
-            <p className="opacity-90">Find Your Dream Model</p>
-            <p className="text-xs mt-2 opacity-75">IRB ID: STUDY00023557</p>
-          </div>
-          <div className="p-6 md:p-8 overflow-y-auto max-h-[60vh] prose prose-sm max-w-none text-gray-700">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <p className="font-semibold text-blue-800 mb-1">🎯 Goal of This Study</p>
-              <p className="text-blue-700 text-sm">Help us evaluate and compare two AI model matching systems. Your ratings will determine which system is better at finding the right model for your needs.</p>
+      <div className="min-h-screen bg-gradient-to-br from-indigo-900 to-blue-900 flex items-center justify-center p-4">
+        <div className="max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden">
+          <div className="p-8 md:p-12">
+            <div className="flex justify-center mb-6">
+              <div className="bg-blue-100 p-4 rounded-full">
+                <Brain className="text-blue-600 w-12 h-12" />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-center text-gray-900 mb-4">AI Model Selection Study</h1>
+            <p className="text-gray-600 text-center mb-8 text-lg">
+              Help us understand how people choose AI models. You will interact with two AI systems and evaluate their recommendations.
+            </p>
+
+            <div className="space-y-4 mb-8">
+              <div className="flex items-start gap-4">
+                <div className="bg-purple-100 p-2 rounded-lg text-purple-600 font-bold">1</div>
+                <div>
+                  <h3 className="font-bold text-gray-900">Interact</h3>
+                  <p className="text-sm text-gray-600">Ask questions and provide feedback to find the best model.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-4">
+                <div className="bg-pink-100 p-2 rounded-lg text-pink-600 font-bold">2</div>
+                <div>
+                  <h3 className="font-bold text-gray-900">Test</h3>
+                  <p className="text-sm text-gray-600">Compare the recommended models side-by-side.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-4">
+                <div className="bg-green-100 p-2 rounded-lg text-green-600 font-bold">3</div>
+                <div>
+                  <h3 className="font-bold text-gray-900">Rate</h3>
+                  <p className="text-sm text-gray-600">Evaluate the quality and cost-efficiency of the systems.</p>
+                </div>
+              </div>
             </div>
 
-            <p>Thank you for participating in this study. In this experiment, you will help us compare two systems by interacting with both and providing your preferences. Your feedback will help us improve LLM matchmaking systems and how they are presented to users.</p>
-
-            <h3 className="text-lg font-semibold mt-4">Settings</h3>
-            <p>There are <strong>25 LLM models from OpenAI</strong> ready for you to use. As a user, it might be difficult choosing a suitable model for your task. Our system will help you find your dream model.</p>
-
-            <h3 className="text-lg font-semibold mt-4">What You Will Do</h3>
-            <p>You will interact with <strong>two systems concurrently</strong>. You will be shown two outputs for the same task or query in each system. The cost of the two systems will be shown separately and you will see how much you spent on each system.</p>
-            <p>Your task is to <strong>compare the two outputs</strong> in each system and indicate which one you prefer.</p>
-            <p>In both systems, you can provide <strong>language feedback</strong>. This gives you an option to dictate the system to your personal preference. For example, you could ask for a cheaper model: <em>"Please give me a cheaper model"</em>, or a model that is more capable: <em>"Please give me a smarter model."</em></p>
-            <p>You will repeat this process for multiple rounds with different queries. <strong>If you are satisfied with your model, you can opt to end the drafting process.</strong></p>
-            <p>After the drafting process, you are allowed to <strong>play with your chosen models</strong> from the two systems (up to 10 rounds each). You then will assign a rating for each model.</p>
-
-            <h3 className="text-lg font-semibold mt-4">Instructions for Comparison</h3>
-            <p>Focus on the quality and the cost of the outputs. You will not see the model's name, but will be provided some information about the LLMs such as its intelligence ratings, input cost, output cost, etc. from OpenAI.</p>
-            <p><strong>There are no right or wrong answers</strong>—choose the output that you think is better overall.</p>
-
-            <h3 className="text-lg font-semibold mt-4">Important Notes</h3>
-            <ul>
-              <li>Please <strong>do not try to guess which system/LLM produced which output</strong>. Focus on your genuine preference.</li>
-              <li>Take your time to read and understand each output before making a choice.</li>
-              <li>Your responses are anonymous and will be used only for research purposes.</li>
-            </ul>
-
-            <p className="text-xs text-gray-500 mt-4 border-t pt-4">Questions? Contact: xinyua11@asu.edu, snguye88@asu.edu, ransalu@asu.edu<br />ASU IRB: (480) 965-6788</p>
-          </div>
-          <div className="p-4 md:p-6 bg-gray-50 border-t flex flex-col items-center gap-4">
-            <p className="text-xs md:text-sm text-gray-600 text-center max-w-xl">By clicking below, you confirm you are at least 18 years old and agree to participate.</p>
-            <button onClick={handleConsent} className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold hover:bg-blue-700 transition-transform transform hover:scale-105 flex items-center"><CheckCircle size={20} className="mr-2" /> I Agree to Participate</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // CALIBRATION PHASE
-  if (phase === 'calibration') {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-        <div className="max-w-5xl w-full">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800">Setup Your Session</h1>
-            <p className="text-gray-600 mt-2">
-              Session configuration: <span className="font-mono bg-gray-200 px-2 py-1 rounded">{budgetConstraints.maxRounds} rounds • ${budgetConstraints.maxCost} budget</span>
+            <button
+              onClick={handleConsent}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl text-lg transition-all transform hover:scale-[1.02] shadow-lg flex items-center justify-center gap-2"
+            >
+              Start Study <ArrowRight />
+            </button>
+            <p className="text-xs text-gray-400 text-center mt-4">
+              By clicking Start, you consent to participate in this anonymous research study.
             </p>
           </div>
-
-          {error && <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2"><AlertCircle size={20} />{error}</div>}
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="space-y-6">
-              <div className="bg-white p-6 rounded-2xl shadow-lg">
-                <h2 className="text-xl font-bold mb-4 flex items-center"><User className="mr-2" /> About You</h2>
-                <div className="space-y-4">
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Age *</label><input type="number" min="18" className="w-full border rounded p-2" value={demographics.age} onChange={e => setDemographics({ ...demographics, age: parseInt(e.target.value) || '' })} placeholder="Required" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Education (optional)</label><select className="w-full border rounded p-2" value={demographics.education} onChange={e => setDemographics({ ...demographics, education: e.target.value })}><option value="">Prefer not to say</option>{EDUCATION_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}</select></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">AI chatbot experience</label><div className="flex items-center gap-2 text-sm text-gray-500"><span>Rarely</span><input type="range" min="1" max="5" className="flex-grow" value={demographics.familiarity} onChange={e => setDemographics({ ...demographics, familiarity: parseInt(e.target.value) })} /><span>Daily</span></div></div>
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-2xl shadow-lg">
-                <h2 className="text-xl font-bold mb-4">Choose Your Group *</h2>
-                <div className="space-y-3">
-                  <button
-                    onClick={() => handlePersonaGroupSelect('traditional')}
-                    className={`w-full p-4 rounded-xl border-2 text-left transition-all ${personaGroup === 'traditional' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300'}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Settings className={`${personaGroup === 'traditional' ? 'text-purple-600' : 'text-gray-400'}`} size={24} />
-                      <div>
-                        <div className="font-bold text-gray-800">Traditional Group</div>
-                        <div className="text-sm text-gray-500">You will be assigned a persona with specific model requirements</div>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => handlePersonaGroupSelect('expert')}
-                    className={`w-full p-4 rounded-xl border-2 text-left transition-all ${personaGroup === 'expert' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <BookOpen className={`${personaGroup === 'expert' ? 'text-blue-600' : 'text-gray-400'}`} size={24} />
-                      <div>
-                        <div className="font-bold text-gray-800">Subject Expert Group</div>
-                        <div className="text-sm text-gray-500">Play as an expert/student in your field seeking the best model</div>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => handlePersonaGroupSelect('preference')}
-                    className={`w-full p-4 rounded-xl border-2 text-left transition-all ${personaGroup === 'preference' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <ThumbsUp className={`${personaGroup === 'preference' ? 'text-indigo-600' : 'text-gray-400'}`} size={24} />
-                      <div>
-                        <div className="font-bold text-gray-800">Personal Preference Group</div>
-                        <div className="text-sm text-gray-500">Ask anything you want and choose based on your own criteria</div>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-
-                {personaGroup === 'expert' && (
-                  <div className="mt-4 pt-4 border-t">
-                    <label className="block text-sm font-bold text-gray-700 mb-3">Select Your Field of Expertise:</label>
-                    <div className="space-y-2">
-                      {EXPERT_SUBJECTS.map(s => (
-                        <button
-                          key={s.id}
-                          onClick={() => setSelectedExpertSubject(s.id)}
-                          className={`w-full p-3 rounded-lg border text-left flex items-center gap-3 transition-all ${selectedExpertSubject === s.id ? 'border-blue-500 bg-blue-100' : 'border-gray-200 hover:border-gray-300'}`}
-                        >
-                          {s.icon}
-                          <span className="font-medium">{s.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              {personaGroup === 'traditional' && assignedConstraints.length > 0 && (
-                <div className="bg-gradient-to-br from-purple-900 to-indigo-800 text-white p-6 rounded-2xl shadow-xl">
-                  <div className="uppercase tracking-widest text-xs font-bold text-purple-300 mb-2">Your Assigned Requirements</div>
-                  <p className="text-purple-100 text-sm mb-4">As a user seeking assistance from LLM, you need a model that meets these specifications:</p>
-                  <div className="space-y-2">
-                    {assignedConstraints.map((c, i) => (
-                      <div key={i} className="bg-white/10 p-3 rounded-lg flex items-center gap-2">
-                        <CheckCircle size={18} className="text-green-400" />
-                        <span className="font-mono text-sm">{formatConstraint(c)}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-purple-200 text-xs mt-4">Focus on finding a model that satisfies these constraints while considering the output quality and cost.</p>
-                </div>
-              )}
-
-              {personaGroup === 'expert' && selectedExpertSubject && (
-                <div className="bg-gradient-to-br from-blue-900 to-indigo-800 text-white p-6 rounded-2xl shadow-xl">
-                  <div className="uppercase tracking-widest text-xs font-bold text-blue-300 mb-2">Subject Expert Instructions</div>
-                  <p className="text-blue-100 text-sm mb-4">
-                    You will play the role of a <strong>{EXPERT_SUBJECTS.find(s => s.id === selectedExpertSubject)?.label}</strong> expert/student seeking assistance from LLM, but you are yet to know which model is good for your field.
-                  </p>
-                  <p className="text-blue-200 text-sm mb-3">Focus on the <strong>quality</strong> and the <strong>cost</strong> of the outputs. Choose the output that best demonstrates domain knowledge and accuracy.</p>
-                  <div className="bg-yellow-500/20 border border-yellow-400/30 rounded-lg p-3 mt-3">
-                    <p className="text-yellow-200 text-sm font-medium">💡 <strong>Tip:</strong> Ask hard, challenging, or technical questions in your field to properly test each model's capabilities. This will help you distinguish which model is truly better for your domain.</p>
-                  </div>
-                </div>
-              )}
-
-              {personaGroup === 'preference' && (
-                <div className="bg-gradient-to-br from-indigo-900 to-purple-800 text-white p-6 rounded-2xl shadow-xl">
-                  <div className="uppercase tracking-widest text-xs font-bold text-indigo-300 mb-2">Personal Preference Instructions</div>
-                  <p className="text-indigo-100 text-sm mb-4">
-                    You can <strong>ask anything you want</strong>. Focus on the quality and the cost of the outputs.
-                  </p>
-                  <p className="text-indigo-200 text-sm">Choose based on whatever criteria matters to you — there are no right or wrong answers!</p>
-                </div>
-              )}
-
-              <div className="bg-white p-6 rounded-2xl shadow-lg">
-                <h2 className="text-xl font-bold mb-4">How It Works</h2>
-                <div className="space-y-3 text-sm text-gray-600">
-                  <div className="flex gap-3"><div className="bg-blue-100 text-blue-700 w-7 h-7 rounded-full flex items-center justify-center font-bold flex-shrink-0 text-sm">1</div><div><p className="font-bold text-gray-800">Enter Queries</p><p>Ask questions and compare two outputs from each system.</p></div></div>
-                  <div className="flex gap-3"><div className="bg-blue-100 text-blue-700 w-7 h-7 rounded-full flex items-center justify-center font-bold flex-shrink-0 text-sm">2</div><div><p className="font-bold text-gray-800">Select & Feedback</p><p>Choose your preferred output. Provide feedback to guide the system (e.g., "cheaper model", "smarter model").</p></div></div>
-                  <div className="flex gap-3"><div className="bg-green-100 text-green-700 w-7 h-7 rounded-full flex items-center justify-center font-bold flex-shrink-0 text-sm">3</div><div><p className="font-bold text-gray-800">End When Satisfied</p><p>Click "I'm Satisfied" anytime to proceed to play with your chosen models.</p></div></div>
-                  <div className="flex gap-3"><div className="bg-green-100 text-green-700 w-7 h-7 rounded-full flex items-center justify-center font-bold flex-shrink-0 text-sm">4</div><div><p className="font-bold text-gray-800">Rate the Systems</p><p>Rate each system based on model quality and budget adherence.</p></div></div>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleCalibrationSubmit}
-                className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition text-lg"
-              >
-                Start Experiment →
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     );
   }
 
-  // INTERACTION PHASE
+  // 2. CALIBRATION (Demographics & Persona)
+  if (phase === 'calibration') {
+    return (
+      <div className="min-h-screen bg-gray-50 py-12 px-4">
+        <div className="max-w-xl mx-auto space-y-6">
+          <div className="bg-white p-6 rounded-2xl shadow-lg">
+            <h2 className="text-xl font-bold mb-4">About You</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+                <input type="number" className="w-full border rounded-lg p-3" value={demographics.age} onChange={e => setDemographics({ ...demographics, age: parseInt(e.target.value) || '' })} placeholder="Enter your age" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Education Level</label>
+                <select className="w-full border rounded-lg p-3" value={demographics.education} onChange={e => setDemographics({ ...demographics, education: e.target.value })}>
+                  {EDUCATION_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Field of Study / Profession</label>
+                <select className="w-full border rounded-lg p-3" value={demographics.major} onChange={e => setDemographics({ ...demographics, major: e.target.value })}>
+                  {MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Familiarity with AI (1-5)</label>
+                <div className="flex items-center gap-2 text-sm text-gray-500"><span>Rarely</span><input type="range" min="1" max="5" className="flex-grow" value={demographics.familiarity} onChange={e => setDemographics({ ...demographics, familiarity: parseInt(e.target.value) })} /><span>Daily</span></div></div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl shadow-lg">
+            <h2 className="text-xl font-bold mb-4">Choose Your Group *</h2>
+            <div className="space-y-3">
+              <button
+                onClick={() => handlePersonaGroupSelect('traditional')}
+                className={`w-full p-4 rounded-xl border-2 text-left transition-all ${personaGroup === 'traditional' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300'}`}
+              >
+                <div className="flex items-center gap-3">
+                  <Settings className={`${personaGroup === 'traditional' ? 'text-purple-600' : 'text-gray-400'}`} size={24} />
+                  <div>
+                    <div className="font-bold text-gray-800">Traditional User</div>
+                    <div className="text-sm text-gray-500">I have specific constraints (e.g., budget, speed).</div>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => handlePersonaGroupSelect('expert')}
+                className={`w-full p-4 rounded-xl border-2 text-left transition-all ${personaGroup === 'expert' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
+              >
+                <div className="flex items-center gap-3">
+                  <BookOpen className={`${personaGroup === 'expert' ? 'text-blue-600' : 'text-gray-400'}`} size={24} />
+                  <div>
+                    <div className="font-bold text-gray-800">Expert User</div>
+                    <div className="text-sm text-gray-500">I want the best model for my specific field.</div>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => handlePersonaGroupSelect('preference')}
+                className={`w-full p-4 rounded-xl border-2 text-left transition-all ${personaGroup === 'preference' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}
+              >
+                <div className="flex items-center gap-3">
+                  <ThumbsUp className={`${personaGroup === 'preference' ? 'text-indigo-600' : 'text-gray-400'}`} size={24} />
+                  <div>
+                    <div className="font-bold text-gray-800">Preference User</div>
+                    <div className="text-sm text-gray-500">I want a model that matches my personal taste.</div>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            {personaGroup === 'expert' && (
+              <div className="mt-4 animate-in fade-in slide-in-from-top-2">
+                <label className="block text-sm font-bold text-gray-700 mb-2">Select Your Expertise:</label>
+                <div className="grid grid-cols-1 gap-2">
+                  {EXPERT_SUBJECTS.map(sub => (
+                    <button
+                      key={sub.id}
+                      onClick={() => setSelectedExpertSubject(sub.id)}
+                      className={`flex items-center gap-3 p-3 rounded-lg border text-left transition ${selectedExpertSubject === sub.id ? 'bg-blue-100 border-blue-400 ring-1 ring-blue-400' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}
+                    >
+                      {sub.icon}
+                      <span className="text-sm font-medium">{sub.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Show assigned constraints if traditional */}
+            {personaGroup === 'traditional' && assignedConstraints.length > 0 && (
+              <div className="mt-4 p-4 bg-purple-50 rounded-lg border border-purple-100 animate-in fade-in">
+                <h3 className="text-sm font-bold text-purple-800 mb-2">Assigned Constraints (Randomly Generated):</h3>
+                <ul className="text-sm space-y-1">
+                  {assignedConstraints.map((c, i) => (
+                    <li key={i} className="flex items-center gap-2">
+                      <CheckCircle size={14} className="text-purple-600" />
+                      <span>{formatConstraint(c)}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-purple-600 mt-2 italic">You will need to find a model that meets these requirements.</p>
+              </div>
+            )}
+          </div>
+
+          {error && (
+            <div className="bg-red-50 text-red-700 p-4 rounded-lg flex items-center gap-2">
+              <AlertCircle size={20} />
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleCalibrationSubmit}
+            disabled={modelPoolLoading}
+            className="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition disabled:opacity-50"
+          >
+            {modelPoolLoading ? 'Loading...' : 'Start Interaction'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. INTERACTION PHASE
   if (phase === 'interaction') {
-    // Show tutorial modal
+    // Show tutorial overlay if requested
     if (showInteractionTutorial) {
+      const step = INTERACTION_TUTORIAL_STEPS[tutorialStep];
       return (
-        <div className="min-h-screen bg-gray-50">
-          {renderTutorialModal()}
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex justify-center mb-4 text-4xl">{step.icon}</div>
+            <h2 className="text-xl font-bold text-center mb-2">{step.title}</h2>
+            <p className="text-gray-600 text-center mb-6">{step.description}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  if (tutorialStep < INTERACTION_TUTORIAL_STEPS.length - 1) {
+                    setTutorialStep(prev => prev + 1);
+                  } else {
+                    setShowInteractionTutorial(false);
+                    setHasSeenInteractionTutorial(true);
+                  }
+                }}
+                className="flex-grow bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition"
+              >
+                {tutorialStep < INTERACTION_TUTORIAL_STEPS.length - 1 ? 'Next' : 'Got it!'}
+              </button>
+            </div>
+            <div className="flex justify-center gap-1 mt-4">
+              {INTERACTION_TUTORIAL_STEPS.map((_, i) => (
+                <div key={i} className={`w-2 h-2 rounded-full ${i === tutorialStep ? 'bg-blue-600' : 'bg-gray-300'}`} />
+              ))}
+            </div>
+          </div>
         </div>
       );
     }
 
-    if (init) {
+    if (init && !arenaState) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
           <div className="max-w-lg w-full p-8 bg-white shadow-xl rounded-2xl text-center">
@@ -1535,7 +1265,9 @@ const App: React.FC = () => {
 
             <Brain className="mx-auto text-blue-600 mb-4" size={48} />
             <h1 className="text-2xl font-bold mb-2">Ready to Begin</h1>
-            <p className="text-sm text-gray-500 mb-4">Budget: ${budgetConstraints.maxCost} • Up to {budgetConstraints.maxRounds} rounds</p>
+
+            {/* REMOVED BUDGET DISPLAY AS REQUESTED */}
+            {/* <p className="text-sm text-gray-500 mb-4">Budget: ${budgetConstraints.maxCost} • Up to {budgetConstraints.maxRounds} rounds</p> */}
 
             {/* Tutorial button */}
             <button
@@ -1556,44 +1288,74 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm flex items-center gap-2"><AlertCircle size={16} />{error}</div>}
-            <div className="mb-4 text-left">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Enter your first query:</label>
-              <textarea className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={5} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Type your question or task here..." />
+            <div className="space-y-4 text-left">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Enter your first question/prompt:</label>
+                <textarea
+                  className="w-full border rounded-lg p-3 h-24 focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="E.g., Write a python script to sort a list..."
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                />
+              </div>
+              <button
+                onClick={() => fetchNextRound(true)}
+                disabled={loading || !prompt.trim()}
+                className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                {loading ? 'Starting...' : 'Start Interaction'}
+              </button>
             </div>
-            <button onClick={startSession} disabled={!prompt.trim() || loading} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-2">{loading ? (<><RefreshCw size={16} className="animate-spin" />Starting...</>) : 'Start Comparing'}</button>
           </div>
         </div>
       );
     }
 
-    const systemACost = (arenaState?.cupid_cost || 0) + (arenaState?.routing_cost || 0);
-    const systemBCost = arenaState?.baseline_cost || 0;
-    const totalCost = systemACost + systemBCost;
-    const isLastRound = arenaState && (arenaState.round >= budgetConstraints.maxRounds || totalCost >= budgetConstraints.maxCost);
-    const canEndEarly = arenaState && arenaState.round >= 1;
-
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row relative">
         {renderModelInfoModal()}
 
-        <header className="bg-white border-b sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">LLM MATCHMAKING</div>
-            </div>
-            <div className="flex items-center space-x-3 text-sm font-mono">
-              <div className="flex items-center"><span className="text-gray-400 mr-1">Round</span><span className="font-bold">{arenaState?.round || 0}/{budgetConstraints.maxRounds}</span></div>
-              <div className="hidden sm:flex items-center gap-2">
-                <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-xs">A: ${systemACost.toFixed(5)}</span>
-                <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-xs">B: ${systemBCost.toFixed(5)}</span>
-              </div>
+        {/* Sidebar */}
+        <div className="w-full md:w-64 bg-white border-r border-gray-200 p-4 flex flex-col gap-4 overflow-y-auto h-48 md:h-screen sticky top-0 md:relative">
+          <div className="mb-2">
+            <h1 className="font-bold text-xl text-gray-900 flex items-center gap-2"><Sparkles className="text-yellow-500" /> Arena</h1>
+            <p className="text-xs text-gray-500">Round {arenaState?.round} / {budgetConstraints.maxRounds}</p>
+          </div>
+
+          <div className="p-3 bg-gray-100 rounded-lg">
+            <div className="text-xs font-bold text-gray-500 uppercase mb-2">Your Task</div>
+            <div className="text-sm font-medium">
+              {personaGroup === 'traditional' ? 'Find a model satisfying constraints' :
+                personaGroup === 'expert' ? `Find the best model for ${EXPERT_SUBJECTS.find(s => s.id === selectedExpertSubject)?.label}` :
+                  'Find your preferred model'}
             </div>
           </div>
-        </header>
 
-        <main className="flex-grow max-w-7xl mx-auto px-4 py-4 w-full flex flex-col gap-6 pb-56 md:pb-8">
+          {personaGroup === 'traditional' && (
+            <div className="p-3 bg-purple-50 border border-purple-100 rounded-lg">
+              <div className="text-xs font-bold text-purple-800 uppercase mb-2">Constraints</div>
+              <ul className="text-xs space-y-2">
+                {assignedConstraints.map((c, i) => (
+                  <li key={i} className="flex items-start gap-1">
+                    <span className="mt-0.5">•</span>
+                    <span>{formatConstraint(c)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="mt-auto">
+            <button onClick={() => { setPhase('openTesting'); setHasTestedModels(false); }} className="w-full py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-100">
+              I'm Satisfied (Skip to Test)
+            </button>
+          </div>
+        </div>
+
+        {/* Main Chat Area */}
+        <div className="flex-grow max-w-7xl mx-auto px-4 py-4 w-full flex flex-col gap-6 pb-56 md:pb-8">
           {loading && <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center"><div className="flex flex-col items-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div><p className="font-mono text-sm">Getting responses...</p></div></div>}
+
           {error && <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2"><AlertCircle size={20} />{error}</div>}
 
           {/* No Chat History Reminder */}
@@ -1603,331 +1365,240 @@ const App: React.FC = () => {
           </div>
 
           {/* Session Reminder Panel */}
-          <div className="bg-gradient-to-r from-slate-50 to-blue-50 border border-slate-200 rounded-xl p-4">
-            <div className="flex flex-wrap items-start gap-4">
-              {/* Budget Info */}
-              <div className="flex items-center gap-3 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
-                <DollarSign size={18} className="text-green-600" />
-                <div className="text-sm">
-                  <span className="text-gray-500">Budget:</span>
-                  <span className="font-bold text-gray-800 ml-1">${budgetConstraints.maxCost}</span>
-                  <span className="text-gray-400 mx-1">•</span>
-                  <span className="text-gray-500">Rounds:</span>
-                  <span className="font-bold text-gray-800 ml-1">{budgetConstraints.maxRounds}</span>
+          {/* BUDGET REMOVED */}
+          {/* <div className="bg-gradient-to-r from-slate-50 to-blue-50 border border-slate-200 rounded-xl p-4"> ... </div> */}
+
+          {/* NEW: Traditional Group Instructions */}
+          {personaGroup === 'traditional' && (
+            <div className="bg-purple-50 border border-purple-200 p-4 rounded-lg shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="bg-purple-100 p-2 rounded-full text-purple-600">
+                  <Info size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-purple-900 text-lg">Instruction</h3>
+                  <p className="text-purple-800">
+                    Compare the <strong className="text-purple-950">Model Specification</strong> (click the Info button on each card) with your <strong className="text-purple-950">Assigned Constraints</strong> on the left.
+                  </p>
+                  <p className="text-sm text-purple-700 mt-1">
+                    Select the model that best satisfies your constraints, even if the text quality is similar.
+                  </p>
                 </div>
               </div>
-
-              {/* Traditional Group - Constraints */}
-              {personaGroup === 'traditional' && assignedConstraints.length > 0 && (
-                <div className="flex-1 min-w-[280px]">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Target size={16} className="text-purple-600" />
-                    <span className="text-xs font-bold text-purple-700 uppercase">Your Model Requirements</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {assignedConstraints.map((c, i) => (
-                      <span key={i} className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full font-medium border border-purple-200">
-                        {formatConstraint(c)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Expert Group - Subject */}
-              {personaGroup === 'expert' && selectedExpertSubject && (
-                <div className="flex items-center gap-2 bg-blue-100 px-3 py-2 rounded-lg border border-blue-200">
-                  <BookOpen size={16} className="text-blue-600" />
-                  <div className="text-sm">
-                    <span className="text-blue-700 font-medium">Expert Mode:</span>
-                    <span className="font-bold text-blue-900 ml-1">{EXPERT_SUBJECTS.find(s => s.id === selectedExpertSubject)?.label}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Preference Group */}
-              {personaGroup === 'preference' && (
-                <div className="flex items-center gap-2 bg-indigo-100 px-3 py-2 rounded-lg border border-indigo-200">
-                  <ThumbsUp size={16} className="text-indigo-600" />
-                  <span className="text-sm font-medium text-indigo-800">Personal Preference Mode — Choose based on your own criteria</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Traditional Group: Review Model Info Instruction */}
-          {personaGroup === 'traditional' && (
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-              <p className="text-sm text-purple-800">
-                <strong>📋 Important:</strong> Review the <strong>Model Information</strong> shown below each response to check if it meets your requirements.
-                Use the feedback fields to guide both systems toward models that satisfy your constraints.
-              </p>
             </div>
           )}
 
-          <div className="bg-white p-4 rounded-lg shadow-sm border"><span className="text-xs font-bold text-gray-400 uppercase">Your Query</span><p className="text-gray-800 font-medium mt-1">{prompt}</p></div>
+          {/* Chat Bubble (User) */}
+          <div className="self-end max-w-2xl bg-gray-100 rounded-2xl rounded-tr-none p-4 shadow-sm border border-gray-200"><p className="text-xs text-gray-500 mb-1 font-bold">You</p><p className="text-gray-800 font-medium mt-1">{prompt}</p></div>
 
           {/* System A */}
           <section>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-blue-600 font-bold text-lg">System A</h2>
-              <span className="text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded">Cost: ${systemACost.toFixed(5)}</span>
+              <span className="text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded">Cost: ${((arenaState?.cupid_pair.left.cost || 0) + (arenaState?.cupid_pair.right.cost || 0)).toFixed(5)}</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{renderModelCard('left', arenaState?.cupid_pair.left, cupidVote, setCupidVote, 'blue', 'cupid')}{renderModelCard('right', arenaState?.cupid_pair.right, cupidVote, setCupidVote, 'blue', 'cupid')}</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{renderModelCard('left', arenaState?.cupid_pair.left!, cupidVote, setCupidVote, 'blue', 'cupid')}{renderModelCard('right', arenaState?.cupid_pair.right!, cupidVote, setCupidVote, 'blue', 'cupid')}</div>
+
             <div className="mt-4 bg-blue-50 p-4 rounded-lg border border-blue-100">
-              <label className="flex items-center text-sm font-bold text-blue-900 mb-2"><MessageSquare size={16} className="mr-2" />Language Feedback (optional)</label>
-              <input type="text" className="w-full border border-blue-200 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder='e.g., "Please give me a cheaper model" or "Please give me a smarter model"' value={feedbackA} onChange={(e) => setFeedbackA(e.target.value)} />
-            </div>
-          </section>
-
-          <hr className="border-gray-200" />
-
-          {/* System B */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-blue-600 font-bold text-lg">System B</h2>
-              <span className="text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded">Cost: ${systemBCost.toFixed(5)}</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{renderModelCard('left', arenaState?.baseline_pair.left, baselineVote, setBaselineVote, 'blue', 'baseline')}{renderModelCard('right', arenaState?.baseline_pair.right, baselineVote, setBaselineVote, 'blue', 'baseline')}</div>
-            <div className="mt-4 bg-blue-50 p-4 rounded-lg border border-blue-100">
-              <label className="flex items-center text-sm font-bold text-blue-900 mb-2"><MessageSquare size={16} className="mr-2" />Language Feedback (optional)</label>
-              <input type="text" className="w-full border border-blue-200 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder='e.g., "Please give me a cheaper model" or "Please give me a smarter model"' value={feedbackB} onChange={(e) => setFeedbackB(e.target.value)} />
-            </div>
-          </section>
-
-          {/* Footer */}
-          <div className="fixed bottom-0 left-0 w-full md:sticky md:bottom-4 z-40 bg-white p-4 shadow-lg border-t md:border md:rounded-xl">
-            <div className="max-w-7xl mx-auto flex flex-col gap-4">
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <span className={`w-3 h-3 rounded-full ${cupidVote ? 'bg-blue-500' : 'bg-gray-300'}`}></span>
-                  <span>A: {cupidVote ? `Output ${cupidVote === 'left' ? '1' : '2'}` : '—'}</span>
-                  <span className="mx-2">|</span>
-                  <span className={`w-3 h-3 rounded-full ${baselineVote ? 'bg-blue-500' : 'bg-gray-300'}`}></span>
-                  <span>B: {baselineVote ? `Output ${baselineVote === 'left' ? '1' : '2'}` : '—'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isLastRound && <span className="text-orange-600 font-bold">Final Round!</span>}
-                  {canEndEarly && !isLastRound && (
-                    <button
-                      onClick={handleSatisfied}
-                      className="bg-green-100 text-green-700 px-4 py-2 rounded-lg font-medium hover:bg-green-200 transition text-sm"
-                    >
-                      ✓ I'm Satisfied — End Drafting
+              <label className="flex items-center text-sm font-bold text-blue-900 mb-2 gap-2">
+                <MessageSquare size={16} />
+                Feedback for System A
+              </label>
+              <textarea
+                className="w-full border border-blue-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                rows={2}
+                placeholder={personaGroup === 'traditional'
+                  ? "Explain your choice (e.g., 'Model A satisfies the speed constraint but is too expensive')."
+                  : "What worked well? What could be improved?"}
+                value={feedbackA}
+                onChange={(e) => setFeedbackA(e.target.value)}
+              />
+              <div className="flex justify-between items-center mt-2">
+                <span className="text-xs text-blue-400">Feedback guides the next model selection.</span>
+                <div className="flex gap-2">
+                  {['Cheaper', 'Smarter', 'Faster'].map(tag => (
+                    <button key={tag} onClick={() => setFeedbackA(prev => (prev ? prev + ' ' : '') + tag)} className="text-xs bg-white border border-blue-200 px-2 py-1 rounded-full text-blue-600 hover:bg-blue-100 transition">
+                      + {tag}
                     </button>
-                  )}
+                  ))}
                 </div>
               </div>
+            </div>
+          </section>
 
-              {!isLastRound && (
-                <textarea
-                  placeholder="Enter your next query (required to continue)..."
-                  className={`w-full border rounded-lg px-3 py-3 text-sm resize-none ${!nextPrompt.trim() && cupidVote && baselineVote ? 'border-red-300 bg-red-50' : ''}`}
-                  rows={4}
-                  value={nextPrompt}
-                  onChange={(e) => setNextPrompt(e.target.value)}
-                />
-              )}
+          {/* System B */}
+          <section className="border-t pt-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-gray-600 font-bold text-lg">System B</h2>
+              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Cost: ${((arenaState?.baseline_pair.left.cost || 0) + (arenaState?.baseline_pair.right.cost || 0)).toFixed(5)}</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{renderModelCard('left', arenaState?.baseline_pair.left!, baselineVote, setBaselineVote, 'gray', 'baseline')}{renderModelCard('right', arenaState?.baseline_pair.right!, baselineVote, setBaselineVote, 'gray', 'baseline')}</div>
+          </section>
 
-              <button onClick={handleSubmitRound} disabled={loading} className="w-full md:w-auto md:self-end bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition">
-                {isLastRound ? 'Continue to Play with Models →' : 'Submit & Next →'}
+          {/* Actions */}
+          <div className="sticky bottom-4 z-40 bg-white/90 backdrop-blur border border-gray-200 shadow-2xl p-4 rounded-2xl flex flex-col gap-3">
+            <div className="flex gap-3">
+              <input type="text" className="flex-grow border rounded-lg px-4 py-3 shadow-sm focus:ring-2 focus:ring-black outline-none" placeholder="Enter prompt for next round..." value={nextPrompt} onChange={(e) => setNextPrompt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') fetchNextRound(false, nextPrompt); }} />
+              <button
+                onClick={() => fetchNextRound(false, nextPrompt)}
+                disabled={(!cupidVote || !baselineVote) && !loading}
+                className="bg-black text-white px-6 py-3 rounded-lg font-bold hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2 whitespace-nowrap"
+              >
+                Next Round <ArrowRight size={18} />
               </button>
             </div>
+            <div className="flex justify-between items-center px-1">
+              <p className="text-xs text-gray-500 flex items-center gap-1">
+                {!cupidVote || !baselineVote ? <><AlertCircle size={12} className="text-orange-500" /> Please select a preferred model for BOTH systems.</> : <><CheckCircle size={12} className="text-green-500" /> Ready to proceed.</>}
+              </p>
+              <button onClick={() => { setPhase('openTesting'); setHasTestedModels(false); }} className="text-xs text-gray-400 hover:text-gray-800 underline">I'm satisfied with the current models</button>
+            </div>
           </div>
-        </main>
+        </div>
       </div>
     );
   }
 
-  // OPEN TESTING PHASE - Side-by-side comparison
+  // 4. OPEN TESTING PHASE
   if (phase === 'openTesting') {
-    // Show tutorial modal
+    // Tutorial
     if (showTestingTutorial) {
+      const step = TESTING_TUTORIAL_STEPS[tutorialStep];
       return (
-        <div className="min-h-screen bg-gray-50">
-          {renderTutorialModal()}
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex justify-center mb-4 text-4xl">{step.icon}</div>
+            <h2 className="text-xl font-bold text-center mb-2">{step.title}</h2>
+            <p className="text-gray-600 text-center mb-6">{step.description}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  if (tutorialStep < TESTING_TUTORIAL_STEPS.length - 1) {
+                    setTutorialStep(prev => prev + 1);
+                  } else {
+                    setShowTestingTutorial(false);
+                    setHasSeenTestingTutorial(true);
+                  }
+                }}
+                className="flex-grow bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition"
+              >
+                {tutorialStep < TESTING_TUTORIAL_STEPS.length - 1 ? 'Next' : 'Got it!'}
+              </button>
+            </div>
+            <div className="flex justify-center gap-1 mt-4">
+              {TESTING_TUTORIAL_STEPS.map((_, i) => (
+                <div key={i} className={`w-2 h-2 rounded-full ${i === tutorialStep ? 'bg-blue-600' : 'bg-gray-300'}`} />
+              ))}
+            </div>
+          </div>
         </div>
       );
     }
 
-    const canChat = sideBySideRounds.length < OPEN_TESTING_MAX_ROUNDS;
+    // Initial Tutorial Trigger
+    if (!hasSeenTestingTutorial) {
+      setTimeout(() => { setShowTestingTutorial(true); setTutorialStep(0); }, 500);
+    }
 
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        <header className="bg-white border-b p-4">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold">Stage 2: Test & Compare</h1>
-              <p className="text-sm text-gray-500">Test both matched models side-by-side ({sideBySideRounds.length}/{OPEN_TESTING_MAX_ROUNDS} rounds)</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => { setShowTestingTutorial(true); setTutorialStep(0); }}
-                className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
-              >
-                <HelpCircle size={14} /> Tutorial
-              </button>
-              <button
-                onClick={() => setPhase('evaluation')}
-                disabled={!hasTestedModels}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                I'm Done → Rate Systems
-              </button>
-            </div>
+      <div className="min-h-screen bg-gray-50 flex flex-col h-screen">
+        <header className="bg-white border-b px-6 py-4 flex justify-between items-center shadow-sm z-10">
+          <div>
+            <h1 className="font-bold text-xl flex items-center gap-2"><Target className="text-blue-600" /> Testing Phase</h1>
+            <p className="text-xs text-gray-500">Compare both systems side-by-side</p>
           </div>
+          <button onClick={() => setPhase('evaluation')} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 transition text-sm flex items-center gap-2">
+            Finish & Rate <ArrowRight size={16} />
+          </button>
         </header>
 
-        <main className="flex-grow max-w-7xl mx-auto w-full p-4 flex flex-col gap-4">
-          {/* Stage Introduction */}
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="text-green-600" size={20} />
-              <span className="font-bold text-green-800">Testing Stage</span>
-            </div>
-            <p className="text-sm text-green-700">
-              Now test both matched models by sending the same prompt to both. Compare their outputs side-by-side to determine which system found a better model for you.
-              <strong> You must test at least once before rating.</strong>
-            </p>
-          </div>
+        <div className="flex-grow flex flex-col md:flex-row overflow-hidden">
+          {/* Main Chat Area */}
+          <div className="flex-grow flex flex-col p-4 md:p-6 overflow-hidden max-w-5xl mx-auto w-full">
+            {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">{error}</div>}
 
-          {/* Instructions */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <p className="text-sm text-yellow-800">
-              <strong>Focus on the quality of output.</strong> Send the same prompt to both models and compare their responses side by side.
-              This will help you determine which model better suits your needs.
-            </p>
-          </div>
-
-          {/* Group-specific reminder */}
-          {personaGroup === 'expert' && selectedExpertSubject && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-sm text-blue-800">
-                <strong>Reminder:</strong> You are evaluating as a <strong>{EXPERT_SUBJECTS.find(s => s.id === selectedExpertSubject)?.label}</strong> expert.
-                Ask technical questions in your field to test model capabilities.
-              </p>
-            </div>
-          )}
-
-          {personaGroup === 'preference' && (
-            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
-              <p className="text-sm text-indigo-800">
-                <strong>Reminder:</strong> You are in Personal Preference mode. Choose based on whatever criteria matters most to you.
-              </p>
-            </div>
-          )}
-
-          {personaGroup === 'traditional' && assignedConstraints.length > 0 && (
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-              <p className="text-sm text-purple-800">
-                <strong>Reminder - Your Requirements:</strong> {assignedConstraints.map(c => formatConstraint(c)).join(' • ')}
-              </p>
-            </div>
-          )}
-
-          {error && <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">{error}</div>}
-
-          {/* Progress indicator */}
-          {!hasTestedModels && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
-              <p className="text-sm text-amber-800">
-                ⚠️ <strong>Required:</strong> Test the models at least once before proceeding to rating.
-              </p>
-            </div>
-          )}
-
-          {/* Round counter */}
-          <div className="text-center text-sm text-gray-500">
-            Rounds: {sideBySideRounds.length} / {OPEN_TESTING_MAX_ROUNDS}
-            {hasTestedModels && <span className="ml-2 text-green-600">✓ Ready to rate</span>}
-          </div>
-
-          {/* Side-by-side comparison rounds */}
-          <div className="flex-grow overflow-y-auto space-y-6">
-            {sideBySideRounds.length === 0 && !openTestLoading && (
-              <div className="text-center text-gray-400 py-12 bg-white rounded-xl border">
-                <p className="text-lg mb-2">Enter a prompt to compare both models</p>
-                <p className="text-sm">Your prompt will be sent to both System A and System B simultaneously</p>
+            {/* Progress indicator */}
+            {!hasTestedModels && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center mb-4">
+                <p className="text-sm text-amber-800">
+                  ⚠️ <strong>Required:</strong> Test the models at least once before proceeding to rating.
+                </p>
               </div>
             )}
 
-            {sideBySideRounds.map((round, i) => (
-              <div key={i} className="bg-white rounded-xl border overflow-hidden">
-                {/* Prompt */}
-                <div className="bg-gray-100 p-4 border-b">
-                  <span className="text-xs font-bold text-gray-500 uppercase">Your Prompt (Round {i + 1})</span>
-                  <p className="text-gray-800 mt-1">{round.prompt}</p>
-                </div>
+            {/* Round counter */}
+            <div className="text-center text-sm text-gray-500 mb-2">
+              Rounds: {sideBySideRounds.length} / {OPEN_TESTING_MAX_ROUNDS}
+              {hasTestedModels && <span className="ml-2 text-green-600">✓ Ready to rate</span>}
+            </div>
 
-                {/* Side-by-side responses */}
-                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x">
-                  {/* System A Response */}
-                  <div className="p-4">
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="font-bold text-blue-600">System A</span>
-                      <span className="text-xs text-gray-400">${round.costA.toFixed(5)}</span>
-                    </div>
-                    <div className="prose prose-sm max-w-none">
+            {/* Side-by-side comparison rounds */}
+            <div className="flex-grow overflow-y-auto space-y-6 pb-4">
+              {sideBySideRounds.length === 0 && !openTestLoading && (
+                <div className="text-center text-gray-400 py-12 bg-white rounded-xl border">
+                  <p className="text-lg mb-2">Enter a prompt to compare both models</p>
+                  <p className="text-sm">Your prompt will be sent to both System A and System B simultaneously</p>
+                </div>
+              )}
+
+              {sideBySideRounds.map((round, i) => (
+                <div key={i} className="bg-white rounded-xl border overflow-hidden shadow-sm">
+                  {/* Prompt */}
+                  <div className="bg-gray-100 p-4 border-b">
+                    <span className="text-xs font-bold text-gray-500 uppercase">Your Prompt (Round {i + 1})</span>
+                    <p className="text-gray-800 mt-1">{round.prompt}</p>
+                  </div>
+                  {/* Side-by-side responses */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x">
+                    <div className="p-4 bg-blue-50/30">
+                      <span className="text-xs font-bold text-blue-600 uppercase mb-2 block">System A Response</span>
                       <Markdown content={round.responseA} />
                     </div>
-                  </div>
-
-                  {/* System B Response */}
-                  <div className="p-4">
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="font-bold text-blue-600">System B</span>
-                      <span className="text-xs text-gray-400">${round.costB.toFixed(5)}</span>
-                    </div>
-                    <div className="prose prose-sm max-w-none">
+                    <div className="p-4 bg-gray-50/30">
+                      <span className="text-xs font-bold text-gray-600 uppercase mb-2 block">System B Response</span>
                       <Markdown content={round.responseB} />
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
 
-            {openTestLoading && (
-              <div className="bg-white rounded-xl border p-8 text-center">
-                <RefreshCw size={24} className="animate-spin mx-auto text-blue-600 mb-2" />
-                <p className="text-gray-500 text-sm">Getting responses from both models...</p>
-              </div>
-            )}
-          </div>
+              {openTestLoading && (
+                <div className="bg-white rounded-xl border p-8 flex justify-center items-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              )}
+            </div>
 
-          {/* Input area */}
-          <div className="bg-white rounded-xl border p-4 sticky bottom-4">
-            <div className="flex gap-2">
+            {/* Input */}
+            <div className="mt-4 flex gap-2">
               <input
-                type="text"
-                className="flex-grow border rounded-lg px-4 py-3"
-                placeholder={canChat ? "Enter your prompt (will be sent to both models)..." : `Maximum ${OPEN_TESTING_MAX_ROUNDS} rounds reached`}
+                className="flex-grow border rounded-lg px-4 py-3 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="Type a prompt to test both models..."
                 value={openTestInput}
-                onChange={(e) => setOpenTestInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && canChat && sendSideBySideMessage()}
-                disabled={!canChat || openTestLoading}
+                onChange={e => setOpenTestInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') sendSideBySideMessage(); }}
+                disabled={openTestLoading || sideBySideRounds.length >= OPEN_TESTING_MAX_ROUNDS}
               />
               <button
                 onClick={sendSideBySideMessage}
-                disabled={openTestLoading || !openTestInput.trim() || !canChat}
-                className="px-6 py-3 rounded-lg font-bold bg-blue-600 text-white disabled:opacity-50 flex items-center gap-2"
+                disabled={openTestLoading || !openTestInput.trim() || sideBySideRounds.length >= OPEN_TESTING_MAX_ROUNDS}
+                className="bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition"
               >
-                <Send size={18} /> Compare
+                <Send size={20} />
               </button>
             </div>
           </div>
-        </main>
+        </div>
       </div>
     );
   }
 
-  // EVALUATION PHASE
+  // 5. EVALUATION & FINISH
   if (phase === 'evaluation') {
-    // Download Reminder Modal
-    if (showDownloadReminder) {
+    if (finished) {
       return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-          <div className="max-w-lg w-full bg-white shadow-2xl rounded-2xl overflow-hidden">
-            {/* Header with important notice */}
+          <div className="max-w-xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden">
             <div className="bg-gradient-to-r from-orange-500 to-red-500 p-6 text-white text-center">
               <AlertCircle className="mx-auto mb-3" size={48} />
               <h1 className="text-2xl font-bold">Important: Save Your Results!</h1>
@@ -1951,250 +1622,137 @@ const App: React.FC = () => {
                 </p>
                 <button
                   onClick={handleDownloadAndFinish}
-                  className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded
-                      ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                      : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 shadow-lg'
-                    }`}
+                  className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 shadow-lg'}`}
                 >
-                  <Download size={22} /> {hasDownloaded ? 'Download Again' : 'Download JSON File'}
+                  <Download size={24} /> {hasDownloaded ? 'Download Again' : 'Download Results'}
                 </button>
               </div>
 
-              {/* Warning if not downloaded */}
-              {!hasDownloaded && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                  <p className="text-red-700 text-sm flex items-center gap-2">
-                    <AlertCircle size={16} />
-                    <strong>Warning:</strong> If you close this page without downloading, your data will be lost!
+              {/* Step 2: Upload Reminder */}
+              <div className={`transition-opacity duration-500 ${hasDownloaded ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 mb-6 text-left border-2 border-blue-400 shadow-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">→</div>
+                    <span className="font-bold text-gray-800 text-lg">Final Step: Upload Your Results</span>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Please upload the JSON file you downloaded to our survey. Your submission is <strong>completely anonymous</strong>.
                   </p>
+                  <a
+                    href="https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbesl1iMmrT8"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 flex items-center justify-center gap-2 transition shadow-lg text-lg"
+                  >
+                    <ArrowRight size={20} /> Go to Survey & Upload File
+                  </a>
                 </div>
-              )}
+              </div>
 
-              {/* Continue Button */}
-              <button
-                onClick={handleFinishStudy}
-                disabled={!hasDownloaded}
-                className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  }`}
-              >
-                Continue to Upload Instructions <ArrowRight size={22} />
-              </button>
-
-              {!hasDownloaded && (
-                <p className="text-center text-gray-400 text-sm mt-3">
-                  Please download your results first
-                </p>
-              )}
+              <p className="text-sm text-gray-400 text-center">Session: {sessionId}</p>
             </div>
           </div>
         </div>
       );
     }
 
-    if (finished) return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="max-w-xl w-full bg-white shadow-xl rounded-2xl p-12 text-center">
-          <CheckCircle className="mx-auto text-green-500 mb-6" size={80} />
-          <h1 className="text-3xl font-bold mb-2">Thank You!</h1>
-          <p className="text-gray-600 mb-6">Your feedback helps us improve LLM matchmaking systems.</p>
-
-          {/* Download reminder with highlighted styling */}
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 mb-6 text-left border-2 border-green-300">
-            <div className="flex items-center gap-2 mb-3">
-              <CheckCircle className="text-green-500" size={24} />
-              <span className="font-bold text-gray-800">Results Downloaded</span>
-            </div>
-            <p className="text-sm text-gray-600 mb-4">
-              Your results file has been downloaded. Please upload it to complete the study.
-            </p>
-            <button onClick={downloadResults} className="w-full bg-green-100 text-green-700 py-3 rounded-lg font-bold hover:bg-green-200 flex items-center justify-center gap-2 transition">
-              <Download size={18} /> Download Again (if needed)
-            </button>
-          </div>
-
-          {/* Upload to Survey - Highlighted */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 mb-6 text-left border-2 border-blue-400 shadow-lg">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">→</div>
-              <span className="font-bold text-gray-800 text-lg">Final Step: Upload Your Results</span>
-            </div>
-            <p className="text-sm text-gray-600 mb-4">
-              Please upload the JSON file you downloaded to our survey. Your submission is <strong>completely anonymous</strong>.
-            </p>
-            <a
-              href="https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbesl1iMmrT8"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 flex items-center justify-center gap-2 transition shadow-lg text-lg"
-            >
-              <ArrowRight size={20} /> Go to Survey & Upload File
-            </a>
-          </div>
-
-          <p className="text-sm text-gray-400">Session: {sessionId}</p>
-        </div>
-      </div>
-    );
-
     const cupidWins = roundHistory.filter(r => r.cupid_vote).length;
     const baselineWins = roundHistory.filter(r => r.baseline_vote).length;
     const systemACost = (arenaState?.cupid_cost || 0) + (arenaState?.routing_cost || 0);
     const systemBCost = arenaState?.baseline_cost || 0;
 
-    // Get final model stats for traditional group
-    const finalCupidStats = arenaState?.cupid_pair?.left_stats || arenaState?.cupid_pair?.right_stats || null;
-    const finalBaselineStats = arenaState?.baseline_pair?.left_stats || arenaState?.baseline_pair?.right_stats || null;
-
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="max-w-5xl w-full bg-white shadow-xl rounded-2xl overflow-hidden">
-          <div className="bg-blue-600 p-6 text-white text-center relative">
-            {/* Go Back Button */}
-            <button
-              onClick={() => setPhase('openTesting')}
-              className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition"
-            >
-              <ArrowLeft size={16} /> Back to Testing
-            </button>
-            <h1 className="text-2xl font-bold">Final Evaluation</h1>
-            <p className="opacity-90">Rate each system based on model quality and budget adherence</p>
-          </div>
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 py-12">
+        <div className="max-w-4xl w-full bg-white rounded-3xl shadow-2xl p-8 md:p-12">
+          <h1 className="text-3xl font-bold text-center mb-2">Final Evaluation</h1>
+          <p className="text-gray-600 text-center mb-8">Please rate the systems based on your experience.</p>
 
-          <div className="p-4 md:p-8 bg-gray-50">
-            {/* Session Info */}
-            <div className="text-center mb-6">
-              <p className="text-gray-600">You completed {roundHistory.length} comparison round{roundHistory.length !== 1 ? 's' : ''}</p>
-              <p className="text-xs text-gray-400 mt-2">(Model identities remain hidden — rate based on your experience)</p>
-            </div>
-
-            {/* Group-specific reminder panel */}
-            <div className="mb-8">
-              {personaGroup === 'traditional' && assignedConstraints.length > 0 && (
-                <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Target size={18} className="text-purple-600" />
-                    <span className="font-bold text-purple-800">Your Model Requirements</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {assignedConstraints.map((c, i) => (
-                      <span key={i} className="bg-purple-100 text-purple-800 text-sm px-3 py-1 rounded-full font-medium border border-purple-200">
-                        {formatConstraint(c)}
-                      </span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            {/* System A Card */}
+            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-6">
+              <h2 className="text-xl font-bold text-blue-800 mb-4 flex items-center gap-2"><Sparkles /> System A</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-blue-900 mb-2">Quality Rating</label>
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map(v => (
+                      <button key={v} onClick={() => setEvalRatingA(v)} className={`flex-1 py-2 rounded-lg font-bold border ${evalRatingA === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200'}`}>
+                        {v}
+                      </button>
                     ))}
                   </div>
+                  <div className="flex justify-between text-xs text-gray-500 mt-1 px-1"><span>Very Bad</span><span>Excellent</span></div>
                 </div>
-              )}
 
-              {personaGroup === 'expert' && selectedExpertSubject && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
-                  <div className="flex items-center gap-2">
-                    <BookOpen size={18} className="text-blue-600" />
-                    <span className="font-bold text-blue-800">Expert Mode:</span>
-                    <span className="text-blue-700">{EXPERT_SUBJECTS.find(s => s.id === selectedExpertSubject)?.label}</span>
+                <div>
+                  <label className="block text-sm font-bold text-blue-900 mb-2">Budget Compliance</label>
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map(v => (
+                      <button key={v} onClick={() => setEvalBudgetRatingA(v)} className={`flex-1 py-2 rounded-lg font-bold border ${evalBudgetRatingA === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200'}`}>
+                        {v}
+                      </button>
+                    ))}
                   </div>
-                  <p className="text-sm text-blue-600 mt-2">Rate based on domain knowledge accuracy and helpfulness for your field.</p>
+                  <div className="flex justify-between text-xs text-gray-500 mt-1 px-1"><span>Poor</span><span>Excellent</span></div>
                 </div>
-              )}
-
-              {personaGroup === 'preference' && (
-                <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-4">
-                  <div className="flex items-center gap-2">
-                    <ThumbsUp size={18} className="text-indigo-600" />
-                    <span className="font-bold text-indigo-800">Personal Preference Mode</span>
-                  </div>
-                  <p className="text-sm text-indigo-600 mt-2">Rate based on your personal criteria — quality, style, helpfulness, or whatever matters to you.</p>
-                </div>
-              )}
-
-              {/* Budget reminder */}
-              <div className="bg-gray-100 rounded-lg p-3 flex items-center justify-center gap-4 text-sm">
-                <span className="text-gray-500">Your Budget:</span>
-                <span className="font-bold text-gray-800">${budgetConstraints.maxCost}</span>
-                <span className="text-gray-400">•</span>
-                <span className="text-gray-500">Max Rounds:</span>
-                <span className="font-bold text-gray-800">{budgetConstraints.maxRounds}</span>
               </div>
             </div>
 
-            {/* Rating cards with optional model info for traditional group */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+            {/* System B Card */}
+            <div className="bg-gray-50 border border-gray-100 rounded-2xl p-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2"><Target /> System B</h2>
               <div className="space-y-4">
-                {renderEvalCard("System A", systemACost, evalRatingA, setEvalRatingA, evalBudgetRatingA, setEvalBudgetRatingA, cupidWins)}
-                {/* Model info for traditional group */}
-                {personaGroup === 'traditional' && (
-                  <div className="bg-white border rounded-xl p-4">
-                    <h4 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
-                      <Info size={14} /> System A - Final Model Specs
-                    </h4>
-                    {finalCupidStats ? (
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-purple-50 p-2 rounded"><span className="text-gray-500">Intelligence:</span><span className="font-bold text-purple-700 ml-1">{finalCupidStats.intelligence ?? '—'}</span></div>
-                        <div className="bg-blue-50 p-2 rounded"><span className="text-gray-500">Speed:</span><span className="font-bold text-blue-700 ml-1">{finalCupidStats.speed ?? '—'}</span></div>
-                        <div className="bg-indigo-50 p-2 rounded"><span className="text-gray-500">Reasoning:</span><span className="font-bold text-indigo-700 ml-1">{finalCupidStats.reasoning ? 'Yes' : 'No'}</span></div>
-                        <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Input:</span><span className="font-bold text-green-700 ml-1">${finalCupidStats.input_price ?? '—'}/1M</span></div>
-                        <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Output:</span><span className="font-bold text-green-700 ml-1">${finalCupidStats.output_price ?? '—'}/1M</span></div>
-                        <div className="bg-orange-50 p-2 rounded"><span className="text-gray-500">Context:</span><span className="font-bold text-orange-700 ml-1">{finalCupidStats.context_window?.toLocaleString() ?? '—'}</span></div>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-400 italic">Model specifications not available</div>
-                    )}
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 mb-2">Quality Rating</label>
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map(v => (
+                      <button key={v} onClick={() => setEvalRatingB(v)} className={`flex-1 py-2 rounded-lg font-bold border ${evalRatingB === v ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-500 border-gray-200'}`}>
+                        {v}
+                      </button>
+                    ))}
                   </div>
-                )}
-              </div>
+                  <div className="flex justify-between text-xs text-gray-500 mt-1 px-1"><span>Very Bad</span><span>Excellent</span></div>
+                </div>
 
-              <div className="space-y-4">
-                {renderEvalCard("System B", systemBCost, evalRatingB, setEvalRatingB, evalBudgetRatingB, setEvalBudgetRatingB, baselineWins)}
-                {/* Model info for traditional group */}
-                {personaGroup === 'traditional' && (
-                  <div className="bg-white border rounded-xl p-4">
-                    <h4 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
-                      <Info size={14} /> System B - Final Model Specs
-                    </h4>
-                    {finalBaselineStats ? (
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-purple-50 p-2 rounded"><span className="text-gray-500">Intelligence:</span><span className="font-bold text-purple-700 ml-1">{finalBaselineStats.intelligence ?? '—'}</span></div>
-                        <div className="bg-blue-50 p-2 rounded"><span className="text-gray-500">Speed:</span><span className="font-bold text-blue-700 ml-1">{finalBaselineStats.speed ?? '—'}</span></div>
-                        <div className="bg-indigo-50 p-2 rounded"><span className="text-gray-500">Reasoning:</span><span className="font-bold text-indigo-700 ml-1">{finalBaselineStats.reasoning ? 'Yes' : 'No'}</span></div>
-                        <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Input:</span><span className="font-bold text-green-700 ml-1">${finalBaselineStats.input_price ?? '—'}/1M</span></div>
-                        <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Output:</span><span className="font-bold text-green-700 ml-1">${finalBaselineStats.output_price ?? '—'}/1M</span></div>
-                        <div className="bg-orange-50 p-2 rounded"><span className="text-gray-500">Context:</span><span className="font-bold text-orange-700 ml-1">{finalBaselineStats.context_window?.toLocaleString() ?? '—'}</span></div>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-400 italic">Model specifications not available</div>
-                    )}
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 mb-2">Budget Compliance</label>
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map(v => (
+                      <button key={v} onClick={() => setEvalBudgetRatingB(v)} className={`flex-1 py-2 rounded-lg font-bold border ${evalBudgetRatingB === v ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-500 border-gray-200'}`}>
+                        {v}
+                      </button>
+                    ))}
                   </div>
-                )}
+                  <div className="flex justify-between text-xs text-gray-500 mt-1 px-1"><span>Poor</span><span>Excellent</span></div>
+                </div>
               </div>
             </div>
+          </div>
 
-            <div className="max-w-2xl mx-auto space-y-6">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Any final thoughts? (optional)</label>
-                <textarea className="w-full border rounded-lg p-3 h-24 bg-white" placeholder="What worked well? What could be improved?" value={evalComment} onChange={(e) => setEvalComment(e.target.value)} />
-              </div>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setPhase('openTesting')}
-                  className="flex-1 bg-gray-200 text-gray-700 py-4 rounded-lg font-bold hover:bg-gray-300 transition flex items-center justify-center"
-                >
-                  <ArrowLeft className="mr-2" size={18} /> Back to Testing
-                </button>
-                <button
-                  onClick={handleFinalSubmit}
-                  disabled={evalRatingA === 0 || evalRatingB === 0 || evalBudgetRatingA === 0 || evalBudgetRatingB === 0 || !hasTestedModels}
-                  className="flex-1 bg-blue-600 text-white py-4 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center"
-                >
-                  Submit & Finish <ArrowRight className="ml-2" size={18} />
-                </button>
-              </div>
-              {!hasTestedModels && (
-                <p className="text-center text-amber-600 text-sm mt-2">
-                  ⚠️ Please test both models at least once before rating.
-                </p>
-              )}
-            </div>
+          <div className="mb-8">
+            <label className="block text-sm font-bold text-gray-700 mb-2">Final Comments (Optional)</label>
+            <textarea
+              className="w-full border rounded-lg p-3 h-24 bg-white"
+              placeholder="What worked well? What could be improved?"
+              value={evalComment}
+              onChange={(e) => setEvalComment(e.target.value)}
+            />
+          </div>
+
+          <div className="flex gap-4">
+            <button
+              onClick={() => setPhase('openTesting')}
+              className="flex-1 bg-gray-200 text-gray-700 py-4 rounded-lg font-bold hover:bg-gray-300 transition flex items-center justify-center"
+            >
+              <ArrowLeft className="mr-2" size={18} /> Back to Testing
+            </button>
+            <button
+              onClick={handleFinalSubmit}
+              disabled={evalRatingA === 0 || evalRatingB === 0 || evalBudgetRatingA === 0 || evalBudgetRatingB === 0}
+              className="flex-1 bg-blue-600 text-white py-4 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center"
+            >
+              Submit & Finish <ArrowRight className="ml-2" size={18} />
+            </button>
           </div>
         </div>
       </div>
