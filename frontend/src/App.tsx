@@ -208,12 +208,12 @@ function sampleBudget(): BudgetConstraints {
   const maxCost = 1.5;
   const minRounds = 5;
   const maxRounds = 15;
-
+  
   // Random cost between 0.5 and 1.5 (rounded to 2 decimal places)
   const randomCost = Math.round((minCost + Math.random() * (maxCost - minCost)) * 100) / 100;
   // Random rounds between 5 and 15 (integer)
   const randomRounds = Math.floor(minRounds + Math.random() * (maxRounds - minRounds + 1));
-
+  
   return { maxRounds: randomRounds, maxCost: randomCost };
 }
 
@@ -244,30 +244,30 @@ interface ModelPoolStats {
 // Sample constraints using min-max rule from Constraint_Picker.ipynb
 function sampleConstraintsDynamic(modelPoolData: ModelPoolStats[], nObjectives: number = 3, kSamples: number = 5): Constraint[] {
   const constraints: Constraint[] = [];
-
+  
   if (modelPoolData.length === 0) return constraints;
-
+  
   // Shuffle and pick n objective columns
   const shuffled = [...OBJECTIVE_COLUMNS].sort(() => Math.random() - 0.5);
   const selectedCols = shuffled.slice(0, Math.min(nObjectives, shuffled.length));
-
+  
   for (const col of selectedCols) {
     // Get all values for this column from model pool
     const values = modelPoolData.map(m => (m as any)[col.key]).filter(v => v !== undefined && v !== null);
-
+    
     if (values.length === 0) continue;
-
+    
     // Sample k values
     const samples: number[] = [];
     for (let i = 0; i < kSamples; i++) {
       samples.push(values[Math.floor(Math.random() * values.length)]);
     }
-
+    
     // For cost columns: use MIN (user wants low cost, so we set upper bound)
     // For benefit columns: use MAX (user wants high value, so we set lower bound)
     let chosenValue: number | boolean;
     let operator: '>=' | '<=' | '==';
-
+    
     if (col.isBoolean) {
       // For boolean, randomly decide if required or not
       chosenValue = Math.random() > 0.5;
@@ -281,7 +281,7 @@ function sampleConstraintsDynamic(modelPoolData: ModelPoolStats[], nObjectives: 
       chosenValue = Math.max(...samples);
       operator = '>=';
     }
-
+    
     constraints.push({
       attribute: col.key,
       operator,
@@ -290,13 +290,13 @@ function sampleConstraintsDynamic(modelPoolData: ModelPoolStats[], nObjectives: 
       unit: col.unit
     });
   }
-
+  
   return constraints;
 }
 
 function formatConstraint(c: Constraint): string {
   const opMap: Record<string, string> = { '>=': '≥', '<=': '≤', '==': '=', '>': '>' };
-
+  
   // For boolean constraints, show cleaner format
   if (typeof c.value === 'boolean') {
     if (c.value === true) {
@@ -305,7 +305,7 @@ function formatConstraint(c: Constraint): string {
       return `${c.displayName}: Not Required`;
     }
   }
-
+  
   const valueStr = typeof c.value === 'number' ? c.value.toLocaleString() : String(c.value);
   return `${c.displayName} ${opMap[c.operator]} ${valueStr}${c.unit ? ` ${c.unit}` : ''}`;
 }
@@ -337,7 +337,7 @@ const INTERACTION_TUTORIAL_STEPS = [
     icon: '💬'
   },
   {
-    title: 'Review Model Information',
+    title: 'Review Model Specification',
     description: 'Check the model specifications (intelligence, speed, price, etc.) to see if they match your requirements. This helps you make informed decisions.',
     icon: '📋'
   },
@@ -436,7 +436,7 @@ const App: React.FC = () => {
   const [openTestLoading, setOpenTestLoading] = useState<boolean>(false);
   const [openTestRoundsA, setOpenTestRoundsA] = useState<number>(0);
   const [openTestRoundsB, setOpenTestRoundsB] = useState<number>(0);
-
+  
   // Side-by-side comparison state for open testing
   interface SideBySideRound {
     prompt: string;
@@ -656,7 +656,7 @@ const App: React.FC = () => {
   // Send to BOTH systems for side-by-side comparison
   const sendSideBySideMessage = async () => {
     if (!openTestInput.trim() || openTestLoading) return;
-
+    
     const totalRounds = sideBySideRounds.length;
     if (totalRounds >= OPEN_TESTING_MAX_ROUNDS) {
       setError(`Maximum of ${OPEN_TESTING_MAX_ROUNDS} comparison rounds reached.`);
@@ -739,12 +739,12 @@ const App: React.FC = () => {
           constraints: assignedConstraints,
           budget: budgetConstraints,
           history: roundHistory,
-          evaluation: {
-            quality_rating_a: evalRatingA,
-            quality_rating_b: evalRatingB,
+          evaluation: { 
+            quality_rating_a: evalRatingA, 
+            quality_rating_b: evalRatingB, 
             budget_rating_a: evalBudgetRatingA,
             budget_rating_b: evalBudgetRatingB,
-            comment: evalComment
+            comment: evalComment 
           },
           final_cost_a: (arenaState?.cupid_cost || 0) + (arenaState?.routing_cost || 0),
           final_cost_b: arenaState?.baseline_cost || 0,
@@ -905,8 +905,8 @@ const App: React.FC = () => {
     await fetchNextRound(false, nextPrompt);
   };
 
-  const handleFinalSubmit = async () => {
-    await saveSessionData();
+  const handleFinalSubmit = async () => { 
+    await saveSessionData(); 
     // Show download reminder before finishing
     setShowDownloadReminder(true);
   };
@@ -925,35 +925,41 @@ const App: React.FC = () => {
     // Get the final model info for each system
     // For cupid (System A): use the last voted model from history
     const lastRound = roundHistory[roundHistory.length - 1];
-    const cupidFinalModelId = lastRound ?
+    const cupidFinalModelId = lastRound ? 
       (lastRound.cupid_vote === 'left' ? lastRound.cupid_left_id : lastRound.cupid_right_id) : null;
     const baselineFinalModelId = lastRound ?
       (lastRound.baseline_vote === 'left' ? lastRound.baseline_left_id : lastRound.baseline_right_id) : null;
-
-    // Get final model stats
-    const cupidFinalStats = arenaState?.cupid_pair?.left_stats || arenaState?.cupid_pair?.right_stats;
-    const baselineFinalStats = arenaState?.baseline_pair?.left_stats || arenaState?.baseline_pair?.right_stats;
-
-    // Calculate total costs from history (interaction phase only)
-    const interactionPhaseCupidCost = roundHistory.length > 0 ?
-      (roundHistory[roundHistory.length - 1].cupid_total_cost || 0) : 0;
-    const interactionPhaseBaselineCost = roundHistory.length > 0 ?
-      (roundHistory[roundHistory.length - 1].baseline_total_cost || 0) : 0;
-    const interactionPhaseRoutingCost = roundHistory.reduce((sum, r) => sum + (r.routing_cost || 0), 0);
-
+    
+    // Get final model stats - MUST match the voted model, not just any available stats
+    // The stats in arenaState are for the CURRENT round's pair, but we need stats for the voted model
+    // Use the vote to get the correct side's stats
+    const cupidFinalStats = lastRound?.cupid_vote === 'left' 
+      ? arenaState?.cupid_pair?.left_stats 
+      : arenaState?.cupid_pair?.right_stats;
+    const baselineFinalStats = lastRound?.baseline_vote === 'left'
+      ? arenaState?.baseline_pair?.left_stats 
+      : arenaState?.baseline_pair?.right_stats;
+    
+    // Calculate total costs from arenaState (interaction phase)
+    // cupid_cost and baseline_cost are cumulative totals from backend
+    // routing_cost is the cumulative total for the feedback/routing model (Grok)
+    const interactionPhaseCupidCost = arenaState?.cupid_cost || 0;
+    const interactionPhaseBaselineCost = arenaState?.baseline_cost || 0;
+    const interactionPhaseRoutingCost = arenaState?.routing_cost || 0;
+    
     // Open testing costs
     const openTestCostA = sideBySideRounds.reduce((sum, r) => sum + r.costA, 0);
     const openTestCostB = sideBySideRounds.reduce((sum, r) => sum + r.costB, 0);
-
+    
     const results = {
-      session_id: sessionId,
+      session_id: sessionId, 
       timestamp: new Date().toISOString(),
-      demographics,
+      demographics, 
       persona_group: personaGroup,
-      expert_subject: selectedExpertSubject,
+      expert_subject: selectedExpertSubject, 
       constraints: assignedConstraints,
-      budget: budgetConstraints,
-
+      budget: budgetConstraints, 
+      
       // Comprehensive final state
       final_state: {
         system_a: {
@@ -964,10 +970,9 @@ const App: React.FC = () => {
           final_model_stats: cupidFinalStats || null,
           interaction_phase_cost: interactionPhaseCupidCost,
           routing_cost_total: interactionPhaseRoutingCost,
-          interaction_phase_cost_with_routing: interactionPhaseCupidCost + interactionPhaseRoutingCost,
+          total_cost: interactionPhaseCupidCost + interactionPhaseRoutingCost,
           open_test_rounds: sideBySideRounds.length,
           open_test_cost: openTestCostA,
-          total_cost: interactionPhaseCupidCost + interactionPhaseRoutingCost + openTestCostA,
           total_rounds: roundHistory.length,
         },
         system_b: {
@@ -977,38 +982,38 @@ const App: React.FC = () => {
           final_model_name: arenaState?.final_model_b?.model_name || null,
           final_model_stats: baselineFinalStats || null,
           interaction_phase_cost: interactionPhaseBaselineCost,
+          total_cost: interactionPhaseBaselineCost,
           open_test_rounds: sideBySideRounds.length,
           open_test_cost: openTestCostB,
-          total_cost: interactionPhaseBaselineCost + openTestCostB,
           total_rounds: roundHistory.length,
         },
         terminated_early: roundHistory.length < budgetConstraints.maxRounds,
       },
-
+      
       // Detailed history with costs
       history: roundHistory,
-
+      
       // Side-by-side testing data
       open_testing: {
         rounds: sideBySideRounds.length,
         data: sideBySideRounds,
       },
-
+      
       // Evaluation ratings
-      evaluation: {
-        quality_rating_a: evalRatingA,
-        quality_rating_b: evalRatingB,
+      evaluation: { 
+        quality_rating_a: evalRatingA, 
+        quality_rating_b: evalRatingB, 
         budget_rating_a: evalBudgetRatingA,
         budget_rating_b: evalBudgetRatingB,
-        comment: evalComment
+        comment: evalComment 
       },
     };
-
+    
     const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `llm_matching_results_${sessionId}.json`;
+    a.href = url; 
+    a.download = `llm_matching_results_${sessionId}.json`; 
     a.click();
     setHasDownloaded(true);
   };
@@ -1019,7 +1024,7 @@ const App: React.FC = () => {
     return side === 'left' ? pair.left_stats || null : pair.right_stats || null;
   };
 
-  // Model Info Modal
+  // Model Specification Modal
   const renderModelInfoModal = () => {
     if (!showModelInfo) return null;
     const stats = getModelStats(showModelInfo.system, showModelInfo.side);
@@ -1043,10 +1048,16 @@ const App: React.FC = () => {
                 </div>
               </div>
               <div className="bg-green-50 p-4 rounded-lg">
-                <h4 className="font-bold text-gray-700 mb-3">Pricing (per 1M tokens)</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><div className="text-lg font-bold text-green-600">${stats.input_price ?? '—'}</div><div className="text-xs text-gray-500">Input Cost</div></div>
-                  <div><div className="text-lg font-bold text-green-700">${stats.output_price ?? '—'}</div><div className="text-xs text-gray-500">Output Cost</div></div>
+                <h4 className="font-bold text-gray-700 mb-3">Pricing</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white p-3 rounded-lg border border-green-200">
+                    <div className="text-xs text-gray-500 mb-1">Input Price</div>
+                    <div className="text-lg font-bold text-green-600">${stats.input_price ?? '—'} <span className="text-xs font-normal text-gray-500">/ 1M tokens</span></div>
+                  </div>
+                  <div className="bg-white p-3 rounded-lg border border-green-200">
+                    <div className="text-xs text-gray-500 mb-1">Output Price</div>
+                    <div className="text-lg font-bold text-green-700">${stats.output_price ?? '—'} <span className="text-xs font-normal text-gray-500">/ 1M tokens</span></div>
+                  </div>
                 </div>
               </div>
               <div className="bg-orange-50 p-4 rounded-lg">
@@ -1108,19 +1119,17 @@ const App: React.FC = () => {
       <div className={`relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col ${borderColor} ${bgColor} ${isSelected ? 'shadow-lg scale-[1.01]' : ''}`}>
         <div className="flex justify-between items-center mb-2">
           <span className="text-xs font-bold text-gray-500">Output {label}</span>
-          {/* Cost with explanation tooltip */}
-          <div className="group relative">
-            <span className="text-xs text-gray-400 cursor-help flex items-center gap-1">
-              <DollarSign size={12} />
-              {(data.cost ?? 0).toFixed(5)}
-              <Info size={10} className="text-gray-300" />
-            </span>
-            <div className="absolute right-0 top-full mt-1 w-48 bg-gray-800 text-white text-xs rounded-lg p-2 hidden group-hover:block z-10 shadow-lg">
-              Cost for this response based on input/output tokens and model pricing (per 1M tokens).
+          {/* Hide cost for traditional group to reduce info overload - focus on specs */}
+          {personaGroup !== 'traditional' && (
+            <div className="group relative">
+              <span className="text-xs text-gray-400 cursor-help flex items-center gap-1">
+                <DollarSign size={12} />
+                {(data.cost ?? 0).toFixed(5)}
+              </span>
             </div>
-          </div>
+          )}
         </div>
-
+        
         {/* Markdown rendered content */}
         <div onClick={() => setVote(side)} className="flex-grow cursor-pointer overflow-y-auto h-48 md:h-auto md:max-h-64 mb-3">
           {data.text ? (
@@ -1130,50 +1139,42 @@ const App: React.FC = () => {
           )}
         </div>
 
-        {/* Model Info - Expanded by default for Traditional Group */}
+        {/* Model Specification - Simplified for Traditional Group */}
         {personaGroup === 'traditional' && (
           <div className="border-t pt-3 mt-2">
-            <div className="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1">
-              <Info size={12} /> Model Specifications
+            <div className="text-xs font-bold text-purple-700 mb-2 flex items-center gap-1">
+              <Target size={12} /> Model Specifications
             </div>
             {stats ? (
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="bg-purple-50 p-2 rounded">
-                  <span className="text-gray-500">Intelligence:</span>
-                  <span className="font-bold text-purple-700 ml-1">{stats.intelligence ?? '—'}</span>
+              <div className="grid grid-cols-3 gap-1.5 text-xs">
+                <div className="bg-purple-50 p-1.5 rounded text-center">
+                  <div className="text-gray-500 text-[10px]">Intelligence</div>
+                  <div className="font-bold text-purple-700">{stats.intelligence ?? '—'}</div>
                 </div>
-                <div className="bg-blue-50 p-2 rounded">
-                  <span className="text-gray-500">Speed:</span>
-                  <span className="font-bold text-blue-700 ml-1">{stats.speed ?? '—'}</span>
+                <div className="bg-blue-50 p-1.5 rounded text-center">
+                  <div className="text-gray-500 text-[10px]">Speed</div>
+                  <div className="font-bold text-blue-700">{stats.speed ?? '—'}</div>
                 </div>
-                <div className="bg-indigo-50 p-2 rounded">
-                  <span className="text-gray-500">Reasoning:</span>
-                  <span className="font-bold text-indigo-700 ml-1">{stats.reasoning ? 'Yes' : 'No'}</span>
+                <div className="bg-indigo-50 p-1.5 rounded text-center">
+                  <div className="text-gray-500 text-[10px]">Reasoning</div>
+                  <div className="font-bold text-indigo-700">{stats.reasoning ? 'Yes' : 'No'}</div>
                 </div>
-                <div className="bg-green-50 p-2 rounded">
-                  <span className="text-gray-500">Input:</span>
-                  <span className="font-bold text-green-700 ml-1">${stats.input_price ?? '—'}/1M</span>
+                <div className="bg-green-50 p-1.5 rounded text-center">
+                  <div className="text-gray-500 text-[10px]">Input $/1M</div>
+                  <div className="font-bold text-green-700">${stats.input_price ?? '—'}</div>
                 </div>
-                <div className="bg-green-50 p-2 rounded">
-                  <span className="text-gray-500">Output:</span>
-                  <span className="font-bold text-green-700 ml-1">${stats.output_price ?? '—'}/1M</span>
+                <div className="bg-green-50 p-1.5 rounded text-center">
+                  <div className="text-gray-500 text-[10px]">Output $/1M</div>
+                  <div className="font-bold text-green-700">${stats.output_price ?? '—'}</div>
                 </div>
-                <div className="bg-orange-50 p-2 rounded">
-                  <span className="text-gray-500">Context:</span>
-                  <span className="font-bold text-orange-700 ml-1">{stats.context_window?.toLocaleString() ?? '—'}</span>
-                </div>
-                <div className="bg-orange-50 p-2 rounded">
-                  <span className="text-gray-500">Max Output:</span>
-                  <span className="font-bold text-orange-700 ml-1">{stats.max_output?.toLocaleString() ?? '—'}</span>
-                </div>
-                <div className="bg-gray-50 p-2 rounded">
-                  <span className="text-gray-500">Func Call:</span>
-                  <span className="font-bold text-gray-700 ml-1">{stats.function_calling ? 'Yes' : 'No'}</span>
+                <div className="bg-orange-50 p-1.5 rounded text-center">
+                  <div className="text-gray-500 text-[10px]">Context</div>
+                  <div className="font-bold text-orange-700 text-[10px]">{stats.context_window?.toLocaleString() ?? '—'}</div>
                 </div>
               </div>
             ) : (
-              <div className="text-xs text-gray-400 italic p-2 bg-gray-50 rounded">
-                Model specifications loading...
+              <div className="text-xs text-purple-400 italic p-2 bg-purple-50 rounded animate-pulse">
+                Loading specifications...
               </div>
             )}
           </div>
@@ -1191,7 +1192,7 @@ const App: React.FC = () => {
         <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center"><span className="text-sm text-gray-500">Total Cost</span><span className="font-mono font-bold text-gray-800 flex items-center"><DollarSign size={14} />{totalCost.toFixed(5)}</span></div>
         <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center"><span className="text-sm text-gray-500">Times Preferred</span><span className="font-mono font-bold text-gray-800">{winCount} rounds</span></div>
       </div>
-
+      
       {/* Quality Rating */}
       <div className="mb-6">
         <label className="block text-sm font-bold text-blue-900 mb-3 text-center">⭐ Rate Model Quality</label>
@@ -1239,50 +1240,50 @@ const App: React.FC = () => {
   // Tutorial Modal Component
   const renderTutorialModal = () => {
     if (!showInteractionTutorial && !showTestingTutorial) return null;
-
+    
     const steps = showInteractionTutorial ? INTERACTION_TUTORIAL_STEPS : TESTING_TUTORIAL_STEPS;
     const currentStep = steps[tutorialStep];
     const totalSteps = steps.length;
     const title = showInteractionTutorial ? 'Interaction Tutorial' : 'Testing Tutorial';
-
+    
     return (
       <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl max-w-lg w-full p-8 relative">
           {/* Progress indicator */}
           <div className="flex justify-center gap-2 mb-6">
             {steps.map((_, idx) => (
-              <div
-                key={idx}
+              <div 
+                key={idx} 
                 className={`w-3 h-3 rounded-full transition-all ${idx === tutorialStep ? 'bg-blue-600 scale-110' : idx < tutorialStep ? 'bg-blue-300' : 'bg-gray-200'}`}
               />
             ))}
           </div>
-
+          
           {/* Content */}
           <div className="text-center mb-8">
             <div className="text-5xl mb-4">{currentStep.icon}</div>
             <h3 className="text-xl font-bold text-gray-800 mb-3">{currentStep.title}</h3>
             <p className="text-gray-600 leading-relaxed">{currentStep.description}</p>
           </div>
-
+          
           {/* Navigation */}
           <div className="flex gap-3">
             {tutorialStep > 0 ? (
-              <button
+              <button 
                 onClick={handlePrevTutorialStep}
                 className="flex-1 py-3 px-4 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 font-medium flex items-center justify-center gap-2"
               >
                 <ArrowLeft size={18} /> Back
               </button>
             ) : (
-              <button
+              <button 
                 onClick={handleSkipTutorial}
                 className="flex-1 py-3 px-4 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 font-medium"
               >
                 Skip Tutorial
               </button>
             )}
-            <button
+            <button 
               onClick={handleNextTutorialStep}
               className="flex-1 py-3 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
             >
@@ -1293,7 +1294,7 @@ const App: React.FC = () => {
               )}
             </button>
           </div>
-
+          
           {/* Step counter */}
           <p className="text-center text-xs text-gray-400 mt-4">
             Step {tutorialStep + 1} of {totalSteps}
@@ -1320,7 +1321,7 @@ const App: React.FC = () => {
               <p className="font-semibold text-blue-800 mb-1">🎯 Goal of This Study</p>
               <p className="text-blue-700 text-sm">Help us evaluate and compare two AI model matching systems. Your ratings will determine which system is better at finding the right model for your needs.</p>
             </div>
-
+            
             <p>Thank you for participating in this study. In this experiment, you will help us compare two systems by interacting with both and providing your preferences. Your feedback will help us improve LLM matchmaking systems and how they are presented to users.</p>
 
             <h3 className="text-lg font-semibold mt-4">Settings</h3>
@@ -1493,8 +1494,8 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <button
-                type="button"
+              <button 
+                type="button" 
                 onClick={handleCalibrationSubmit}
                 className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition text-lg"
               >
@@ -1535,10 +1536,10 @@ const App: React.FC = () => {
 
             <Brain className="mx-auto text-blue-600 mb-4" size={48} />
             <h1 className="text-2xl font-bold mb-2">Ready to Begin</h1>
-            <p className="text-sm text-gray-500 mb-4">Budget: ${budgetConstraints.maxCost} • Up to {budgetConstraints.maxRounds} rounds</p>
+            <p className="text-sm text-gray-500 mb-4">You have up to {budgetConstraints.maxRounds} rounds to find your ideal model</p>
 
             {/* Tutorial button */}
-            <button
+            <button 
               onClick={() => { setShowInteractionTutorial(true); setTutorialStep(0); }}
               className="mb-4 text-sm text-blue-600 hover:text-blue-800 underline flex items-center justify-center gap-1 mx-auto"
             >
@@ -1577,93 +1578,87 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-gray-50 flex flex-col">
         {renderModelInfoModal()}
 
-        <header className="bg-white border-b sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+        {/* Simplified Header */}
+        <header className="bg-white border-b sticky top-0 z-20">
+          <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <div className="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">LLM MATCHMAKING</div>
             </div>
             <div className="flex items-center space-x-3 text-sm font-mono">
               <div className="flex items-center"><span className="text-gray-400 mr-1">Round</span><span className="font-bold">{arenaState?.round || 0}/{budgetConstraints.maxRounds}</span></div>
-              <div className="hidden sm:flex items-center gap-2">
-                <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-xs">A: ${systemACost.toFixed(5)}</span>
-                <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-xs">B: ${systemBCost.toFixed(5)}</span>
-              </div>
             </div>
           </div>
         </header>
 
-        <main className="flex-grow max-w-7xl mx-auto px-4 py-4 w-full flex flex-col gap-6 pb-56 md:pb-8">
+        {/* Sticky Constraints Panel for Traditional Group */}
+        {personaGroup === 'traditional' && assignedConstraints.length > 0 && (
+          <div className="sticky top-14 z-10 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg">
+            <div className="max-w-7xl mx-auto px-4 py-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Target size={18} className="text-purple-200" />
+                  <span className="font-bold text-sm">Your Requirements:</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {assignedConstraints.map((c, i) => (
+                    <span key={i} className="bg-white/20 text-white text-xs px-3 py-1 rounded-full font-medium backdrop-blur-sm border border-white/30">
+                      {formatConstraint(c)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <main className="flex-grow max-w-7xl mx-auto px-4 py-4 w-full flex flex-col gap-5 pb-56 md:pb-8">
           {loading && <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center"><div className="flex flex-col items-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div><p className="font-mono text-sm">Getting responses...</p></div></div>}
           {error && <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-2"><AlertCircle size={20} />{error}</div>}
 
-          {/* No Chat History Reminder */}
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2">
-            <AlertCircle size={16} className="text-amber-600 flex-shrink-0" />
-            <p className="text-sm text-amber-800"><strong>Note:</strong> There is no chat history. Each round is a one-time session — the models do not remember previous queries.</p>
-          </div>
-
-          {/* Session Reminder Panel */}
-          <div className="bg-gradient-to-r from-slate-50 to-blue-50 border border-slate-200 rounded-xl p-4">
-            <div className="flex flex-wrap items-start gap-4">
-              {/* Budget Info */}
-              <div className="flex items-center gap-3 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
-                <DollarSign size={18} className="text-green-600" />
-                <div className="text-sm">
-                  <span className="text-gray-500">Budget:</span>
-                  <span className="font-bold text-gray-800 ml-1">${budgetConstraints.maxCost}</span>
-                  <span className="text-gray-400 mx-1">•</span>
-                  <span className="text-gray-500">Rounds:</span>
-                  <span className="font-bold text-gray-800 ml-1">{budgetConstraints.maxRounds}</span>
+          {/* Task Instructions based on persona group */}
+          {personaGroup === 'traditional' && (
+            <div className="bg-purple-50 border-2 border-purple-300 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="bg-purple-600 text-white p-2 rounded-lg flex-shrink-0">
+                  <Target size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-purple-900 mb-1">Your Task: Find a Model that Meets Your Requirements</h3>
+                  <p className="text-sm text-purple-800">
+                    Compare the <strong>Model Specifications</strong> below each response against your requirements shown above. 
+                    Select the output from the model that better matches your constraints, then use the feedback field to guide the system 
+                    (e.g., "I need a cheaper model" or "Give me higher intelligence").
+                  </p>
                 </div>
               </div>
-
-              {/* Traditional Group - Constraints */}
-              {personaGroup === 'traditional' && assignedConstraints.length > 0 && (
-                <div className="flex-1 min-w-[280px]">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Target size={16} className="text-purple-600" />
-                    <span className="text-xs font-bold text-purple-700 uppercase">Your Model Requirements</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {assignedConstraints.map((c, i) => (
-                      <span key={i} className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full font-medium border border-purple-200">
-                        {formatConstraint(c)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Expert Group - Subject */}
-              {personaGroup === 'expert' && selectedExpertSubject && (
-                <div className="flex items-center gap-2 bg-blue-100 px-3 py-2 rounded-lg border border-blue-200">
-                  <BookOpen size={16} className="text-blue-600" />
-                  <div className="text-sm">
-                    <span className="text-blue-700 font-medium">Expert Mode:</span>
-                    <span className="font-bold text-blue-900 ml-1">{EXPERT_SUBJECTS.find(s => s.id === selectedExpertSubject)?.label}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Preference Group */}
-              {personaGroup === 'preference' && (
-                <div className="flex items-center gap-2 bg-indigo-100 px-3 py-2 rounded-lg border border-indigo-200">
-                  <ThumbsUp size={16} className="text-indigo-600" />
-                  <span className="text-sm font-medium text-indigo-800">Personal Preference Mode — Choose based on your own criteria</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Traditional Group: Review Model Info Instruction */}
-          {personaGroup === 'traditional' && (
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-              <p className="text-sm text-purple-800">
-                <strong>📋 Important:</strong> Review the <strong>Model Information</strong> shown below each response to check if it meets your requirements.
-                Use the feedback fields to guide both systems toward models that satisfy your constraints.
-              </p>
             </div>
           )}
+
+          {personaGroup === 'expert' && selectedExpertSubject && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-3">
+              <BookOpen size={20} className="text-blue-600 flex-shrink-0" />
+              <div>
+                <span className="font-bold text-blue-900">Expert Mode: {EXPERT_SUBJECTS.find(s => s.id === selectedExpertSubject)?.label}</span>
+                <p className="text-sm text-blue-700">Select the model that performs best for your domain expertise. Use feedback to guide the system.</p>
+              </div>
+            </div>
+          )}
+
+          {personaGroup === 'preference' && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center gap-3">
+              <ThumbsUp size={20} className="text-indigo-600 flex-shrink-0" />
+              <div>
+                <span className="font-bold text-indigo-900">Personal Preference Mode</span>
+                <p className="text-sm text-indigo-700">Choose based on your own criteria — quality, style, helpfulness, or anything you value.</p>
+              </div>
+            </div>
+          )}
+
+          {/* No Chat History Note - simplified */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 flex items-center gap-2">
+            <AlertCircle size={14} className="text-amber-600 flex-shrink-0" />
+            <p className="text-xs text-amber-700"><strong>Note:</strong> Models don't remember previous queries. Each round is independent.</p>
+          </div>
 
           <div className="bg-white p-4 rounded-lg shadow-sm border"><span className="text-xs font-bold text-gray-400 uppercase">Your Query</span><p className="text-gray-800 font-medium mt-1">{prompt}</p></div>
 
@@ -1671,12 +1666,20 @@ const App: React.FC = () => {
           <section>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-blue-600 font-bold text-lg">System A</h2>
-              <span className="text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded">Cost: ${systemACost.toFixed(5)}</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{renderModelCard('left', arenaState?.cupid_pair.left, cupidVote, setCupidVote, 'blue', 'cupid')}{renderModelCard('right', arenaState?.cupid_pair.right, cupidVote, setCupidVote, 'blue', 'cupid')}</div>
             <div className="mt-4 bg-blue-50 p-4 rounded-lg border border-blue-100">
               <label className="flex items-center text-sm font-bold text-blue-900 mb-2"><MessageSquare size={16} className="mr-2" />Language Feedback (optional)</label>
-              <input type="text" className="w-full border border-blue-200 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder='e.g., "Please give me a cheaper model" or "Please give me a smarter model"' value={feedbackA} onChange={(e) => setFeedbackA(e.target.value)} />
+              <input 
+                type="text" 
+                className="w-full border border-blue-200 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                placeholder={personaGroup === 'traditional' 
+                  ? 'e.g., "I need a cheaper model", "Give me higher intelligence", "I want faster speed"' 
+                  : 'e.g., "Please give me a smarter model" or "I prefer more concise responses"'
+                } 
+                value={feedbackA} 
+                onChange={(e) => setFeedbackA(e.target.value)} 
+              />
             </div>
           </section>
 
@@ -1686,12 +1689,20 @@ const App: React.FC = () => {
           <section>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-blue-600 font-bold text-lg">System B</h2>
-              <span className="text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded">Cost: ${systemBCost.toFixed(5)}</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{renderModelCard('left', arenaState?.baseline_pair.left, baselineVote, setBaselineVote, 'blue', 'baseline')}{renderModelCard('right', arenaState?.baseline_pair.right, baselineVote, setBaselineVote, 'blue', 'baseline')}</div>
             <div className="mt-4 bg-blue-50 p-4 rounded-lg border border-blue-100">
               <label className="flex items-center text-sm font-bold text-blue-900 mb-2"><MessageSquare size={16} className="mr-2" />Language Feedback (optional)</label>
-              <input type="text" className="w-full border border-blue-200 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder='e.g., "Please give me a cheaper model" or "Please give me a smarter model"' value={feedbackB} onChange={(e) => setFeedbackB(e.target.value)} />
+              <input 
+                type="text" 
+                className="w-full border border-blue-200 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                placeholder={personaGroup === 'traditional' 
+                  ? 'e.g., "I need a cheaper model", "Give me higher intelligence", "I want faster speed"' 
+                  : 'e.g., "Please give me a smarter model" or "I prefer more concise responses"'
+                } 
+                value={feedbackB} 
+                onChange={(e) => setFeedbackB(e.target.value)} 
+              />
             </div>
           </section>
 
@@ -1761,14 +1772,14 @@ const App: React.FC = () => {
               <p className="text-sm text-gray-500">Test both matched models side-by-side ({sideBySideRounds.length}/{OPEN_TESTING_MAX_ROUNDS} rounds)</p>
             </div>
             <div className="flex items-center gap-3">
-              <button
+              <button 
                 onClick={() => { setShowTestingTutorial(true); setTutorialStep(0); }}
                 className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
               >
                 <HelpCircle size={14} /> Tutorial
               </button>
-              <button
-                onClick={() => setPhase('evaluation')}
+              <button 
+                onClick={() => setPhase('evaluation')} 
                 disabled={!hasTestedModels}
                 className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -1777,7 +1788,7 @@ const App: React.FC = () => {
             </div>
           </div>
         </header>
-
+        
         <main className="flex-grow max-w-7xl mx-auto w-full p-4 flex flex-col gap-4">
           {/* Stage Introduction */}
           <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
@@ -1786,7 +1797,7 @@ const App: React.FC = () => {
               <span className="font-bold text-green-800">Testing Stage</span>
             </div>
             <p className="text-sm text-green-700">
-              Now test both matched models by sending the same prompt to both. Compare their outputs side-by-side to determine which system found a better model for you.
+              Now test both matched models by sending the same prompt to both. Compare their outputs side-by-side to determine which system found a better model for you. 
               <strong> You must test at least once before rating.</strong>
             </p>
           </div>
@@ -1794,7 +1805,7 @@ const App: React.FC = () => {
           {/* Instructions */}
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             <p className="text-sm text-yellow-800">
-              <strong>Focus on the quality of output.</strong> Send the same prompt to both models and compare their responses side by side.
+              <strong>Focus on the quality of output.</strong> Send the same prompt to both models and compare their responses side by side. 
               This will help you determine which model better suits your needs.
             </p>
           </div>
@@ -1803,7 +1814,7 @@ const App: React.FC = () => {
           {personaGroup === 'expert' && selectedExpertSubject && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <p className="text-sm text-blue-800">
-                <strong>Reminder:</strong> You are evaluating as a <strong>{EXPERT_SUBJECTS.find(s => s.id === selectedExpertSubject)?.label}</strong> expert.
+                <strong>Reminder:</strong> You are evaluating as a <strong>{EXPERT_SUBJECTS.find(s => s.id === selectedExpertSubject)?.label}</strong> expert. 
                 Ask technical questions in your field to test model capabilities.
               </p>
             </div>
@@ -1858,7 +1869,7 @@ const App: React.FC = () => {
                   <span className="text-xs font-bold text-gray-500 uppercase">Your Prompt (Round {i + 1})</span>
                   <p className="text-gray-800 mt-1">{round.prompt}</p>
                 </div>
-
+                
                 {/* Side-by-side responses */}
                 <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x">
                   {/* System A Response */}
@@ -1871,7 +1882,7 @@ const App: React.FC = () => {
                       <Markdown content={round.responseA} />
                     </div>
                   </div>
-
+                  
                   {/* System B Response */}
                   <div className="p-4">
                     <div className="flex justify-between items-center mb-3">
@@ -1933,7 +1944,7 @@ const App: React.FC = () => {
               <h1 className="text-2xl font-bold">Important: Save Your Results!</h1>
               <p className="opacity-90 mt-2">Please download your results before closing this page</p>
             </div>
-
+            
             <div className="p-8">
               {/* Step 1: Download */}
               <div className={`rounded-xl p-6 mb-6 border-2 ${hasDownloaded ? 'bg-green-50 border-green-300' : 'bg-yellow-50 border-yellow-400'}`}>
@@ -1949,12 +1960,13 @@ const App: React.FC = () => {
                 <p className="text-sm text-gray-600 mb-4">
                   Your study data will be saved as a JSON file. You will need to upload this file in the next step.
                 </p>
-                <button
-                  onClick={handleDownloadAndFinish}
-                  className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded
-                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                    : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 shadow-lg'
-                    }`}
+                <button 
+                  onClick={handleDownloadAndFinish} 
+                  className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${
+                    hasDownloaded 
+                      ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                      : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 shadow-lg'
+                  }`}
                 >
                   <Download size={22} /> {hasDownloaded ? 'Download Again' : 'Download JSON File'}
                 </button>
@@ -1971,17 +1983,18 @@ const App: React.FC = () => {
               )}
 
               {/* Continue Button */}
-              <button
+              <button 
                 onClick={handleFinishStudy}
                 disabled={!hasDownloaded}
-                className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  }`}
+                className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${
+                  hasDownloaded 
+                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
               >
                 Continue to Upload Instructions <ArrowRight size={22} />
               </button>
-
+              
               {!hasDownloaded && (
                 <p className="text-center text-gray-400 text-sm mt-3">
                   Please download your results first
@@ -1999,7 +2012,7 @@ const App: React.FC = () => {
           <CheckCircle className="mx-auto text-green-500 mb-6" size={80} />
           <h1 className="text-3xl font-bold mb-2">Thank You!</h1>
           <p className="text-gray-600 mb-6">Your feedback helps us improve LLM matchmaking systems.</p>
-
+          
           {/* Download reminder with highlighted styling */}
           <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 mb-6 text-left border-2 border-green-300">
             <div className="flex items-center gap-2 mb-3">
@@ -2023,9 +2036,9 @@ const App: React.FC = () => {
             <p className="text-sm text-gray-600 mb-4">
               Please upload the JSON file you downloaded to our survey. Your submission is <strong>completely anonymous</strong>.
             </p>
-            <a
-              href="https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbesl1iMmrT8"
-              target="_blank"
+            <a 
+              href="https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbesl1iMmrT8" 
+              target="_blank" 
               rel="noopener noreferrer"
               className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 flex items-center justify-center gap-2 transition shadow-lg text-lg"
             >
@@ -2043,17 +2056,22 @@ const App: React.FC = () => {
     const systemACost = (arenaState?.cupid_cost || 0) + (arenaState?.routing_cost || 0);
     const systemBCost = arenaState?.baseline_cost || 0;
 
-    // Get final model stats for traditional group
-    const finalCupidStats = arenaState?.cupid_pair?.left_stats || arenaState?.cupid_pair?.right_stats || null;
-    const finalBaselineStats = arenaState?.baseline_pair?.left_stats || arenaState?.baseline_pair?.right_stats || null;
+    // Get final model stats for traditional group - use the voted model's stats
+    const lastRound = roundHistory[roundHistory.length - 1];
+    const finalCupidStats = lastRound?.cupid_vote === 'left' 
+      ? arenaState?.cupid_pair?.left_stats 
+      : arenaState?.cupid_pair?.right_stats;
+    const finalBaselineStats = lastRound?.baseline_vote === 'left'
+      ? arenaState?.baseline_pair?.left_stats 
+      : arenaState?.baseline_pair?.right_stats;
 
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="max-w-5xl w-full bg-white shadow-xl rounded-2xl overflow-hidden">
           <div className="bg-blue-600 p-6 text-white text-center relative">
             {/* Go Back Button */}
-            <button
-              onClick={() => setPhase('openTesting')}
+            <button 
+              onClick={() => setPhase('openTesting')} 
               className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition"
             >
               <ArrowLeft size={16} /> Back to Testing
@@ -2061,7 +2079,7 @@ const App: React.FC = () => {
             <h1 className="text-2xl font-bold">Final Evaluation</h1>
             <p className="opacity-90">Rate each system based on model quality and budget adherence</p>
           </div>
-
+          
           <div className="p-4 md:p-8 bg-gray-50">
             {/* Session Info */}
             <div className="text-center mb-6">
@@ -2107,15 +2125,6 @@ const App: React.FC = () => {
                   <p className="text-sm text-indigo-600 mt-2">Rate based on your personal criteria — quality, style, helpfulness, or whatever matters to you.</p>
                 </div>
               )}
-
-              {/* Budget reminder */}
-              <div className="bg-gray-100 rounded-lg p-3 flex items-center justify-center gap-4 text-sm">
-                <span className="text-gray-500">Your Budget:</span>
-                <span className="font-bold text-gray-800">${budgetConstraints.maxCost}</span>
-                <span className="text-gray-400">•</span>
-                <span className="text-gray-500">Max Rounds:</span>
-                <span className="font-bold text-gray-800">{budgetConstraints.maxRounds}</span>
-              </div>
             </div>
 
             {/* Rating cards with optional model info for traditional group */}
@@ -2143,7 +2152,7 @@ const App: React.FC = () => {
                   </div>
                 )}
               </div>
-
+              
               <div className="space-y-4">
                 {renderEvalCard("System B", systemBCost, evalRatingB, setEvalRatingB, evalBudgetRatingB, setEvalBudgetRatingB, baselineWins)}
                 {/* Model info for traditional group */}
@@ -2168,22 +2177,22 @@ const App: React.FC = () => {
                 )}
               </div>
             </div>
-
+            
             <div className="max-w-2xl mx-auto space-y-6">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Any final thoughts? (optional)</label>
                 <textarea className="w-full border rounded-lg p-3 h-24 bg-white" placeholder="What worked well? What could be improved?" value={evalComment} onChange={(e) => setEvalComment(e.target.value)} />
               </div>
               <div className="flex gap-4">
-                <button
-                  onClick={() => setPhase('openTesting')}
+                <button 
+                  onClick={() => setPhase('openTesting')} 
                   className="flex-1 bg-gray-200 text-gray-700 py-4 rounded-lg font-bold hover:bg-gray-300 transition flex items-center justify-center"
                 >
                   <ArrowLeft className="mr-2" size={18} /> Back to Testing
                 </button>
-                <button
-                  onClick={handleFinalSubmit}
-                  disabled={evalRatingA === 0 || evalRatingB === 0 || evalBudgetRatingA === 0 || evalBudgetRatingB === 0 || !hasTestedModels}
+                <button 
+                  onClick={handleFinalSubmit} 
+                  disabled={evalRatingA === 0 || evalRatingB === 0 || evalBudgetRatingA === 0 || evalBudgetRatingB === 0 || !hasTestedModels} 
                   className="flex-1 bg-blue-600 text-white py-4 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center"
                 >
                   Submit & Finish <ArrowRight className="ml-2" size={18} />
