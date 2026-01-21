@@ -960,17 +960,41 @@ async def list_models():
 async def get_model_pool_stats():
     """Get model pool statistics for constraint sampling.
     Returns only the attributes shown in model cards for constraint generation."""
+    
+    def safe_int(val):
+        """Safely convert value to int, handling comma-formatted numbers."""
+        if pd.isna(val) or val is None:
+            return None
+        if isinstance(val, (int, float)):
+            return int(val)
+        # Handle string with commas like "400,000"
+        try:
+            return int(str(val).replace(",", ""))
+        except (ValueError, TypeError):
+            return None
+    
+    def safe_float(val):
+        """Safely convert value to float."""
+        if pd.isna(val) or val is None:
+            return None
+        if isinstance(val, (int, float)):
+            return float(val)
+        try:
+            return float(str(val).replace(",", ""))
+        except (ValueError, TypeError):
+            return None
+    
     stats = []
     for _, row in MODEL_POOL.iterrows():
         stats.append({
             "id": int(row["id"]),
-            "intelligence": int(row.get("intelligence", 0)) if pd.notna(row.get("intelligence")) else None,
-            "speed": int(row.get("speed", 0)) if pd.notna(row.get("speed")) else None,
-            "reasoning": int(row.get("reasoning", 0)) if pd.notna(row.get("reasoning")) else None,
-            "input_price": float(row.get("input-price", 0)) if pd.notna(row.get("input-price")) else None,
-            "output_price": float(row.get("output-price", 0)) if pd.notna(row.get("output-price")) else None,
-            "context_window": int(row.get("window-context", 0)) if pd.notna(row.get("window-context")) else None,
-            "max_output": int(row.get("max-output", 0)) if pd.notna(row.get("max-output")) else None,
+            "intelligence": safe_int(row.get("intelligence")),
+            "speed": safe_int(row.get("speed")),
+            "reasoning": safe_int(row.get("reasoning")),
+            "input_price": safe_float(row.get("input-price")),
+            "output_price": safe_float(row.get("output-price")),
+            "context_window": safe_int(row.get("window-context")),
+            "max_output": safe_int(row.get("max-output")),
         })
     return {"models": stats, "count": len(stats)}
 
