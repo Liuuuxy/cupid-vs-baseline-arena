@@ -1101,10 +1101,10 @@ const App: React.FC = () => {
             <div className="h-32 bg-gray-100 rounded mb-3"></div>
             {personaGroup === 'traditional' && (
               <div className="border-t pt-3 mt-2">
-                <div className="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1">
-                  <Info size={12} /> Model Specifications
+                <div className="text-xs font-bold text-purple-700 mb-2 flex items-center gap-1">
+                  <Target size={12} /> Model Specifications
                 </div>
-                <div className="text-xs text-gray-400 italic p-2 bg-gray-50 rounded">
+                <div className="text-xs text-purple-400 italic p-2 bg-purple-50 rounded animate-pulse">
                   Loading model specifications...
                 </div>
               </div>
@@ -1146,7 +1146,7 @@ const App: React.FC = () => {
               <Target size={12} /> Model Specifications
             </div>
             {stats ? (
-              <div className="grid grid-cols-3 gap-1.5 text-xs">
+              <div className="grid grid-cols-4 gap-1.5 text-xs">
                 <div className="bg-purple-50 p-1.5 rounded text-center">
                   <div className="text-gray-500 text-[10px]">Intelligence</div>
                   <div className="font-bold text-purple-700">{stats.intelligence ?? '—'}</div>
@@ -1170,6 +1170,14 @@ const App: React.FC = () => {
                 <div className="bg-orange-50 p-1.5 rounded text-center">
                   <div className="text-gray-500 text-[10px]">Context</div>
                   <div className="font-bold text-orange-700 text-[10px]">{stats.context_window?.toLocaleString() ?? '—'}</div>
+                </div>
+                <div className="bg-orange-50 p-1.5 rounded text-center">
+                  <div className="text-gray-500 text-[10px]">Max Output</div>
+                  <div className="font-bold text-orange-700 text-[10px]">{stats.max_output?.toLocaleString() ?? '—'}</div>
+                </div>
+                <div className="bg-gray-50 p-1.5 rounded text-center">
+                  <div className="text-gray-500 text-[10px]">Func Call</div>
+                  <div className="font-bold text-gray-700">{stats.function_calling ? 'Yes' : 'No'}</div>
                 </div>
               </div>
             ) : (
@@ -1329,7 +1337,7 @@ const App: React.FC = () => {
 
             <h3 className="text-lg font-semibold mt-4">What You Will Do</h3>
             <p>You will interact with <strong>two systems concurrently</strong>. You will be shown two outputs for the same task or query in each system. The cost of the two systems will be shown separately and you will see how much you spent on each system.</p>
-            <p>Your task is to <strong>compare the two outputs in each system</strong> and indicate which one you prefer.</p>
+            <p>Your task is to <strong>compare the two outputs</strong> in each system and indicate which one you prefer.</p>
             <p>In both systems, you can provide <strong>language feedback</strong>. This gives you an option to dictate the system to your personal preference. For example, you could ask for a cheaper model: <em>"Please give me a cheaper model"</em>, or a model that is more capable: <em>"Please give me a smarter model."</em></p>
             <p>You will repeat this process for multiple rounds with different queries. <strong>If you are satisfied with your model, you can opt to end the drafting process.</strong></p>
             <p>After the drafting process, you are allowed to <strong>play with your chosen models</strong> from the two systems (up to 10 rounds each). You then will assign a rating for each model.</p>
@@ -2146,13 +2154,15 @@ const App: React.FC = () => {
                       <Info size={14} /> System A - Final Model Specs
                     </h4>
                     {finalCupidStats ? (
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-purple-50 p-2 rounded"><span className="text-gray-500">Intelligence:</span><span className="font-bold text-purple-700 ml-1">{finalCupidStats.intelligence ?? '—'}</span></div>
-                        <div className="bg-blue-50 p-2 rounded"><span className="text-gray-500">Speed:</span><span className="font-bold text-blue-700 ml-1">{finalCupidStats.speed ?? '—'}</span></div>
-                        <div className="bg-indigo-50 p-2 rounded"><span className="text-gray-500">Reasoning:</span><span className="font-bold text-indigo-700 ml-1">{finalCupidStats.reasoning ? 'Yes' : 'No'}</span></div>
-                        <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Input:</span><span className="font-bold text-green-700 ml-1">${finalCupidStats.input_price ?? '—'}/1M</span></div>
-                        <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Output:</span><span className="font-bold text-green-700 ml-1">${finalCupidStats.output_price ?? '—'}/1M</span></div>
-                        <div className="bg-orange-50 p-2 rounded"><span className="text-gray-500">Context:</span><span className="font-bold text-orange-700 ml-1">{finalCupidStats.context_window?.toLocaleString() ?? '—'}</span></div>
+                      <div className="grid grid-cols-4 gap-2 text-xs">
+                        <div className="bg-purple-50 p-2 rounded text-center"><div className="text-gray-500 text-[10px]">Intelligence</div><div className="font-bold text-purple-700">{finalCupidStats.intelligence ?? '—'}</div></div>
+                        <div className="bg-blue-50 p-2 rounded text-center"><div className="text-gray-500 text-[10px]">Speed</div><div className="font-bold text-blue-700">{finalCupidStats.speed ?? '—'}</div></div>
+                        <div className="bg-indigo-50 p-2 rounded text-center"><div className="text-gray-500 text-[10px]">Reasoning</div><div className="font-bold text-indigo-700">{finalCupidStats.reasoning ? 'Yes' : 'No'}</div></div>
+                        <div className="bg-green-50 p-2 rounded text-center"><div className="text-gray-500 text-[10px]">Input $/1M</div><div className="font-bold text-green-700">${finalCupidStats.input_price ?? '—'}</div></div>
+                        <div className="bg-green-50 p-2 rounded text-center"><div className="text-gray-500 text-[10px]">Output $/1M</div><div className="font-bold text-green-700">${finalCupidStats.output_price ?? '—'}</div></div>
+                        <div className="bg-orange-50 p-2 rounded text-center"><div className="text-gray-500 text-[10px]">Context</div><div className="font-bold text-orange-700 text-[10px]">{finalCupidStats.context_window?.toLocaleString() ?? '—'}</div></div>
+                        <div className="bg-orange-50 p-2 rounded text-center"><div className="text-gray-500 text-[10px]">Max Output</div><div className="font-bold text-orange-700 text-[10px]">{finalCupidStats.max_output?.toLocaleString() ?? '—'}</div></div>
+                        <div className="bg-gray-50 p-2 rounded text-center"><div className="text-gray-500 text-[10px]">Func Call</div><div className="font-bold text-gray-700">{finalCupidStats.function_calling ? 'Yes' : 'No'}</div></div>
                       </div>
                     ) : (
                       <div className="text-xs text-gray-400 italic">Model specifications not available</div>
@@ -2170,13 +2180,15 @@ const App: React.FC = () => {
                       <Info size={14} /> System B - Final Model Specs
                     </h4>
                     {finalBaselineStats ? (
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-purple-50 p-2 rounded"><span className="text-gray-500">Intelligence:</span><span className="font-bold text-purple-700 ml-1">{finalBaselineStats.intelligence ?? '—'}</span></div>
-                        <div className="bg-blue-50 p-2 rounded"><span className="text-gray-500">Speed:</span><span className="font-bold text-blue-700 ml-1">{finalBaselineStats.speed ?? '—'}</span></div>
-                        <div className="bg-indigo-50 p-2 rounded"><span className="text-gray-500">Reasoning:</span><span className="font-bold text-indigo-700 ml-1">{finalBaselineStats.reasoning ? 'Yes' : 'No'}</span></div>
-                        <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Input:</span><span className="font-bold text-green-700 ml-1">${finalBaselineStats.input_price ?? '—'}/1M</span></div>
-                        <div className="bg-green-50 p-2 rounded"><span className="text-gray-500">Output:</span><span className="font-bold text-green-700 ml-1">${finalBaselineStats.output_price ?? '—'}/1M</span></div>
-                        <div className="bg-orange-50 p-2 rounded"><span className="text-gray-500">Context:</span><span className="font-bold text-orange-700 ml-1">{finalBaselineStats.context_window?.toLocaleString() ?? '—'}</span></div>
+                      <div className="grid grid-cols-4 gap-2 text-xs">
+                        <div className="bg-purple-50 p-2 rounded text-center"><div className="text-gray-500 text-[10px]">Intelligence</div><div className="font-bold text-purple-700">{finalBaselineStats.intelligence ?? '—'}</div></div>
+                        <div className="bg-blue-50 p-2 rounded text-center"><div className="text-gray-500 text-[10px]">Speed</div><div className="font-bold text-blue-700">{finalBaselineStats.speed ?? '—'}</div></div>
+                        <div className="bg-indigo-50 p-2 rounded text-center"><div className="text-gray-500 text-[10px]">Reasoning</div><div className="font-bold text-indigo-700">{finalBaselineStats.reasoning ? 'Yes' : 'No'}</div></div>
+                        <div className="bg-green-50 p-2 rounded text-center"><div className="text-gray-500 text-[10px]">Input $/1M</div><div className="font-bold text-green-700">${finalBaselineStats.input_price ?? '—'}</div></div>
+                        <div className="bg-green-50 p-2 rounded text-center"><div className="text-gray-500 text-[10px]">Output $/1M</div><div className="font-bold text-green-700">${finalBaselineStats.output_price ?? '—'}</div></div>
+                        <div className="bg-orange-50 p-2 rounded text-center"><div className="text-gray-500 text-[10px]">Context</div><div className="font-bold text-orange-700 text-[10px]">{finalBaselineStats.context_window?.toLocaleString() ?? '—'}</div></div>
+                        <div className="bg-orange-50 p-2 rounded text-center"><div className="text-gray-500 text-[10px]">Max Output</div><div className="font-bold text-orange-700 text-[10px]">{finalBaselineStats.max_output?.toLocaleString() ?? '—'}</div></div>
+                        <div className="bg-gray-50 p-2 rounded text-center"><div className="text-gray-500 text-[10px]">Func Call</div><div className="font-bold text-gray-700">{finalBaselineStats.function_calling ? 'Yes' : 'No'}</div></div>
                       </div>
                     ) : (
                       <div className="text-xs text-gray-400 italic">Model specifications not available</div>
@@ -2185,33 +2197,33 @@ const App: React.FC = () => {
                 )}
               </div>
             </div>
+          </div>
 
-            <div className="max-w-2xl mx-auto space-y-6">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Any final thoughts? (optional)</label>
-                <textarea className="w-full border rounded-lg p-3 h-24 bg-white" placeholder="What worked well? What could be improved?" value={evalComment} onChange={(e) => setEvalComment(e.target.value)} />
-              </div>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setPhase('openTesting')}
-                  className="flex-1 bg-gray-200 text-gray-700 py-4 rounded-lg font-bold hover:bg-gray-300 transition flex items-center justify-center"
-                >
-                  <ArrowLeft className="mr-2" size={18} /> Back to Testing
-                </button>
-                <button
-                  onClick={handleFinalSubmit}
-                  disabled={evalRatingA === 0 || evalRatingB === 0 || evalBudgetRatingA === 0 || evalBudgetRatingB === 0 || !hasTestedModels}
-                  className="flex-1 bg-blue-600 text-white py-4 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center"
-                >
-                  Submit & Finish <ArrowRight className="ml-2" size={18} />
-                </button>
-              </div>
-              {!hasTestedModels && (
-                <p className="text-center text-amber-600 text-sm mt-2">
-                  ⚠️ Please test both models at least once before rating.
-                </p>
-              )}
+          <div className="max-w-2xl mx-auto space-y-6">
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Any final thoughts? (optional)</label>
+              <textarea className="w-full border rounded-lg p-3 h-24 bg-white" placeholder="What worked well? What could be improved?" value={evalComment} onChange={(e) => setEvalComment(e.target.value)} />
             </div>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setPhase('openTesting')}
+                className="flex-1 bg-gray-200 text-gray-700 py-4 rounded-lg font-bold hover:bg-gray-300 transition flex items-center justify-center"
+              >
+                <ArrowLeft className="mr-2" size={18} /> Back to Testing
+              </button>
+              <button
+                onClick={handleFinalSubmit}
+                disabled={evalRatingA === 0 || evalRatingB === 0 || evalBudgetRatingA === 0 || evalBudgetRatingB === 0 || !hasTestedModels}
+                className="flex-1 bg-blue-600 text-white py-4 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center"
+              >
+                Submit & Finish <ArrowRight className="ml-2" size={18} />
+              </button>
+            </div>
+            {!hasTestedModels && (
+              <p className="text-center text-amber-600 text-sm mt-2">
+                ⚠️ Please test both models at least once before rating.
+              </p>
+            )}
           </div>
         </div>
       </div>
