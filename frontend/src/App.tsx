@@ -373,7 +373,7 @@ const TESTING_TUTORIAL_STEPS = [
 
 // --- EXPERT SUBJECTS ---
 const EXPERT_SUBJECTS = [
-  { id: 'science', label: 'Science & Technology', icon: <BookOpen className="text-blue-500" size={24} /> },
+  { id: 'science', label: 'Art & Science', icon: <BookOpen className="text-blue-500" size={24} /> },
   { id: 'business', label: 'Business & Finance', icon: <DollarSign className="text-green-500" size={24} /> },
   { id: 'medical', label: 'Healthcare & Medicine', icon: <Heart className="text-red-500" size={24} /> },
   { id: 'engineering', label: 'Engineering', icon: <Settings className="text-orange-500" size={24} /> },
@@ -1319,86 +1319,158 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="max-w-3xl w-full bg-white shadow-xl rounded-2xl overflow-hidden flex flex-col">
-          {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 md:p-8 text-white text-center">
             <h1 className="text-2xl md:text-3xl font-bold">LLM Matchmaking Study</h1>
             <p className="opacity-90">Find Your Dream Model</p>
             <p className="text-xs mt-2 opacity-75">IRB ID: STUDY00023557</p>
           </div>
 
-          {/* Scrollable Content */}
           <div className="p-6 md:p-8 overflow-y-auto max-h-[60vh] prose prose-sm max-w-none text-gray-700">
-
-            {/* The Goal */}
-            <div className="bg-blue-50 border-l-4 border-blue-600 p-4 mb-6 rounded-r-md">
-              <h3 className="text-blue-900 font-bold m-0 text-base">🎯 Your Mission</h3>
-              <p className="text-blue-800 m-0 mt-1">
-                Find the best AI model for your needs among <strong>25 hidden options</strong> (ranging from cheap/fast to expensive/smart).
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="font-semibold text-blue-800 mb-1">🎯 Goal of This Study</p>
+              <p className="text-blue-700 text-sm">
+                Help us compare two model-matching systems. Your job is to choose which answers you prefer (considering quality + cost)
+                so we can see which system learns your preferences better.
               </p>
             </div>
 
-            <h3 className="font-bold text-gray-900 border-b pb-2">How to Participate</h3>
-
-            <div className="space-y-4 mt-4">
-              {/* Phase 1 */}
-              <div className="flex gap-3">
-                <div className="flex-shrink-0 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold text-sm">1</div>
-                <div>
-                  <h4 className="font-bold text-gray-900 m-0">The Search (Matchmaking)</h4>
-                  <p className="m-0 text-sm mb-2">
-                    Chat with two systems (A & B) simultaneously. For every prompt, pick the winner based on <strong>Quality</strong> and <strong>Cost</strong>.
-                  </p>
-                  <div className="bg-gray-100 p-3 rounded-md text-sm border border-gray-200">
-                    <span className="font-bold text-indigo-600">💡 Pro Tip: Guide the System</span>
-                    <br />
-                    Don't just chat! Tell the system what you need.
-                    <br />
-                    <em>"This is too expensive, find me a cheaper model"</em> or <em>"I need better reasoning capabilities."</em>
-                  </div>
-                </div>
-              </div>
-
-              {/* Phase 2 */}
-              <div className="flex gap-3">
-                <div className="flex-shrink-0 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold text-sm">2</div>
-                <div>
-                  <h4 className="font-bold text-gray-900 m-0">The Test (Verification)</h4>
-                  <p className="m-0 text-sm">
-                    Once you are satisfied with a model, click <strong>Finish Matching</strong>. You will then have 10 rounds to test-drive your chosen model to ensure it truly fits your needs.
-                  </p>
-                </div>
-              </div>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+              <p className="font-semibold mb-1">TL;DR</p>
+              <p className="text-sm m-0">
+                Ask a question → each system shows a <strong>duel (2 answers)</strong> → pick a winner in <strong>System A</strong> and in{" "}
+                <strong>System B</strong> → optional “cheaper / smarter / longer context” feedback → repeat → then play & rate.
+              </p>
             </div>
 
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-6 flex gap-3 items-start">
-              <span className="text-xl">⚠️</span>
-              <div>
-                <p className="font-bold text-amber-900 text-xs uppercase mb-1">Privacy Notice</p>
-                <p className="text-amber-800 text-xs m-0">
-                  <strong>Do not enter personal info</strong> (names, addresses, phone numbers). All queries are collected for research.
-                </p>
-              </div>
+            <h3 className="text-lg font-semibold mt-2">What you’ll see</h3>
+            <ul className="ml-5 list-disc">
+              <li>
+                Two panels: <strong>System A</strong> and <strong>System B</strong>.
+              </li>
+              <li>
+                In <strong>each</strong> system, you will see <strong>two candidate outputs</strong> for the same query.
+              </li>
+              <li>
+                Costs are tracked <strong>separately</strong> for System A vs System B (you’ll see how much you spent in each).
+              </li>
+              <li>
+                Model names are hidden, but you may see metadata (e.g., ratings, input/output costs). The systems choose among{" "}
+                <strong>25 OpenAI models</strong>.
+              </li>
+            </ul>
+
+            {/* Constraint-based (Traditional group) note */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mt-4">
+              <p className="font-semibold text-emerald-900 mb-1">✅ If you were assigned constraints (Traditional group)</p>
+              <p className="text-emerald-800 text-sm m-0">
+                You may see a small list of constraints (e.g., “input price ≤ $2/1M”, “reasoning required”, “intelligence ≥ 4”).
+                In this mode, treat constraints as <strong>requirements</strong>.
+              </p>
+              <ul className="ml-5 list-disc text-sm text-emerald-800 mt-2">
+                <li>
+                  When picking winners in each duel, <strong>prefer answers that come from models satisfying the constraints</strong>.
+                </li>
+                <li>
+                  If <strong>both</strong> options satisfy constraints, choose based on <strong>quality + cost</strong> as usual.
+                </li>
+                <li>
+                  If <strong>neither</strong> satisfies constraints, pick the option that seems <strong>closest</strong> (and you can use feedback like “I want reasoning model”).
+                </li>
+              </ul>
             </div>
 
-            <p className="text-xs text-gray-400 mt-6 pt-4 border-t text-center">
-              Questions? Contact: xinyua11@asu.edu | ASU IRB: (480) 965-6788
+
+            <h3 className="text-lg font-semibold mt-4">What you do each round (the exact loop)</h3>
+            <ol className="ml-5 list-decimal">
+              <li>
+                <strong>Enter a query</strong> (anything realistic: explain, write, debug, brainstorm, etc.).
+              </li>
+              <li>
+                <strong>Read the duels</strong>:
+                <ul className="ml-5 list-disc mt-1">
+                  <li>System A shows Answer A1 vs Answer A2</li>
+                  <li>System B shows Answer B1 vs Answer B2</li>
+                </ul>
+              </li>
+              <li>
+                <strong>Pick winners (two choices every round)</strong>:
+                <ul className="ml-5 list-disc mt-1">
+                  <li>Choose the winner in <strong>System A</strong></li>
+                  <li>Choose the winner in <strong>System B</strong></li>
+                </ul>
+              </li>
+              <li>
+                <strong>(Optional) Give language feedback</strong> to guide what you want next (examples:{" "}
+                <em>“cheaper model”</em>, <em>“stronger reasoning”</em>). This is optional
+                and should reflect your preference, not “correctness.”
+              </li>
+              <li>
+                <strong>Repeat</strong> until you run out of rounds or you feel satisfied and choose to stop early.
+              </li>
+            </ol>
+
+            <h3 className="text-lg font-semibold mt-4">How to compare (what “better” means)</h3>
+            <p className="text-sm">
+              Choose based on what you personally value. Most participants weigh:
+            </p>
+            <ul className="ml-5 list-disc">
+              <li><strong>Quality</strong> (helpfulness, correctness, clarity)</li>
+              <li><strong>Cost</strong> (is the extra cost worth it?)</li>
+              <li><strong>Style fit</strong> (detail level, tone, structure)</li>
+            </ul>
+            <p className="text-sm">
+              It’s okay if your preferences change as you see more outputs — just choose what you prefer in the moment.
+            </p>
+
+            <h3 className="text-lg font-semibold mt-4">After drafting: play & rate</h3>
+            <p className="text-sm">
+              After the drafting/matching phase, you can freely “play” with the final chosen model from each system (up to{" "}
+              <strong>10 rounds per system</strong>), then rate each system on:
+            </p>
+            <ul className="ml-5 list-disc">
+              <li>Overall output quality</li>
+              <li>Budget compliance</li>
+            </ul>
+
+            <h3 className="text-lg font-semibold mt-4">Important notes</h3>
+            <ul className="ml-5 list-disc text-sm">
+              <li>
+                Please <strong>do not try to guess</strong> which system/model produced which output. Focus on your preference.
+              </li>
+              <li>Take your time to read both duels before choosing winners.</li>
+              <li>Your responses are anonymous and used only for research purposes.</li>
+            </ul>
+
+            <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 mt-4">
+              <p className="font-semibold text-amber-800 mb-1">⚠️ Privacy Notice</p>
+              <p className="text-amber-700 text-sm">
+                Please <strong>do not enter any personal or sensitive information</strong> in your prompts. Avoid names, addresses,
+                phone numbers, or identifying details. Prompts and model responses will be collected for research.
+              </p>
+            </div>
+
+            <p className="text-xs text-gray-500 mt-4 border-t pt-4">
+              Questions? Contact: xinyua11@asu.edu, snguye88@asu.edu, ransalu@asu.edu
+              <br />
+              ASU IRB: (480) 965-6788
             </p>
           </div>
 
-          {/* Footer / Agree Button */}
           <div className="p-4 md:p-6 bg-gray-50 border-t flex flex-col items-center gap-4">
             <p className="text-xs md:text-sm text-gray-600 text-center max-w-xl">
               By clicking below, you confirm you are at least 18 years old and agree to participate.
             </p>
             <button
               onClick={handleConsent}
-              className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold hover:bg-blue-700 transition-transform transform hover:scale-105 flex items-center shadow-lg"
+              className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold hover:bg-blue-700 transition-transform transform hover:scale-105 flex items-center"
             >
               <CheckCircle size={20} className="mr-2" /> I Agree to Participate
             </button>
           </div>
         </div>
       </div>
+
+
     );
   }
 
