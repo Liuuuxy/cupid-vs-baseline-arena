@@ -12,6 +12,7 @@ import remarkGfm from 'remark-gfm';
 import 'katex/dist/katex.min.css';
 // --- API CONFIGURATION ---
 const API_URL = 'https://cupid-vs-baseline-arena.onrender.com';
+const SURVEY_URL = "https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbesl1iMmrT8";
 
 // --- MARKDOWN COMPONENT WITH STYLING ---
 const Markdown: React.FC<{ content: string; className?: string }> = ({ content, className = '' }) => {
@@ -453,6 +454,9 @@ const App: React.FC = () => {
   const [evalBudgetRatingB, setEvalBudgetRatingB] = useState<number>(0);
   const [evalComment, setEvalComment] = useState<string>('');
   const [finished, setFinished] = useState<boolean>(false);
+  const [hasOpenedSurvey, setHasOpenedSurvey] = useState(false);
+  const [confirmedUploaded, setConfirmedUploaded] = useState(false);
+
 
   // Tutorial state
   const [showInteractionTutorial, setShowInteractionTutorial] = useState<boolean>(false);
@@ -485,6 +489,14 @@ const App: React.FC = () => {
     };
     fetchModelPool();
   }, []);
+
+  useEffect(() => {
+    if (showDownloadReminder) {
+      setHasOpenedSurvey(false);
+      setConfirmedUploaded(false);
+    }
+  }, [showDownloadReminder]);
+
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2061,116 +2073,198 @@ const App: React.FC = () => {
       return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
           <div className="max-w-lg w-full bg-white shadow-2xl rounded-2xl overflow-hidden">
-            {/* Header with important notice */}
+            {/* Header */}
             <div className="bg-gradient-to-r from-orange-500 to-red-500 p-6 text-white text-center">
               <AlertCircle className="mx-auto mb-3" size={48} />
-              <h1 className="text-2xl font-bold">Important: Save Your Results!</h1>
-              <p className="opacity-90 mt-2">Please download your results before closing this page</p>
+              <h1 className="text-2xl font-bold">Final Steps (Required)</h1>
+              <p className="opacity-90 mt-2">
+                <strong>Step 1: Download</strong> your JSON → <strong>Step 2: Upload</strong> it to the survey
+              </p>
+              <p className="text-sm mt-2 opacity-90">
+                <strong>Important:</strong> Downloading does <u>not</u> submit your participation — you must upload the file.
+              </p>
             </div>
 
             <div className="p-8">
-              {/* Step 1: Download */}
-              <div className={`rounded-xl p-6 mb-6 border-2 ${hasDownloaded ? 'bg-green-50 border-green-300' : 'bg-yellow-50 border-yellow-400'}`}>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${hasDownloaded ? 'bg-green-500' : 'bg-yellow-500'}`}>
-                    {hasDownloaded ? <CheckCircle size={24} /> : '1'}
+              {/* STEP 1: Download */}
+              <div
+                className={`rounded-xl p-6 mb-5 border-2 ${hasDownloaded ? "bg-green-50 border-green-300" : "bg-yellow-50 border-yellow-400"
+                  }`}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${hasDownloaded ? "bg-green-500" : "bg-yellow-500"
+                      }`}
+                  >
+                    {hasDownloaded ? <CheckCircle size={24} /> : "1"}
                   </div>
                   <div>
-                    <span className="font-bold text-gray-800 text-lg">Download Your Results</span>
-                    {hasDownloaded && <span className="ml-2 text-green-600 text-sm font-medium">✓ Downloaded</span>}
+                    <div className="font-bold text-gray-800 text-lg">
+                      Step 1: Download your submission file (JSON)
+                    </div>
+                    {hasDownloaded && (
+                      <div className="text-green-700 text-sm font-medium">✓ Downloaded</div>
+                    )}
                   </div>
                 </div>
-                <p className="text-sm text-gray-600 mb-4">
-                  Your study data will be saved as a JSON file. You will need to upload this file in the next step.
+
+                <p className="text-sm text-gray-700 mb-3">
+                  This JSON file is <strong>what you will upload</strong> to complete the study.
+                  <br />
+                  <strong>Nothing is submitted automatically.</strong>
                 </p>
+
                 <button
                   onClick={handleDownloadAndFinish}
                   className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded
-                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                    : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 shadow-lg'
+                    ? "bg-green-100 text-green-700 hover:bg-green-200"
+                    : "bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 shadow-lg"
                     }`}
                 >
-                  <Download size={22} /> {hasDownloaded ? 'Download Again' : 'Download JSON File'}
+                  <Download size={22} /> {hasDownloaded ? "Download Again" : "Download JSON File"}
                 </button>
+
+                <p className="text-xs text-gray-600 mt-3">
+                  You will upload this <strong>.json</strong> file in Step 2.
+                </p>
               </div>
 
-              {/* Warning if not downloaded */}
-              {!hasDownloaded && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              {/* STEP 2: Upload */}
+              <div
+                className={`rounded-xl p-6 mb-4 border-2 ${hasDownloaded ? "bg-blue-50 border-blue-300" : "bg-gray-50 border-gray-200"
+                  }`}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${confirmedUploaded ? "bg-green-600" : hasDownloaded ? "bg-blue-600" : "bg-gray-400"
+                      }`}
+                  >
+                    {confirmedUploaded ? <CheckCircle size={24} /> : "2"}
+                  </div>
+                  <div>
+                    <div className="font-bold text-gray-800 text-lg">
+                      Step 2: Upload the JSON to the survey (required)
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      You are <strong>not done</strong> until you upload the file <strong>and submit</strong> the survey.
+                    </div>
+                  </div>
+                </div>
+
+                <ol className="ml-5 list-decimal text-sm text-gray-700">
+                  <li>Click the button below to open the survey (opens a new tab).</li>
+                  <li>Find the <strong>file upload</strong> question.</li>
+                  <li>Upload the <strong>JSON file</strong> you downloaded in Step 1.</li>
+                  <li><strong>Submit the survey</strong> (this is what completes your participation).</li>
+                </ol>
+
+                <a
+                  href={SURVEY_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setHasOpenedSurvey(true)}
+                  className={`mt-4 w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded
+                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg"
+                    : "bg-gray-200 text-gray-400 pointer-events-none cursor-not-allowed"
+                    }`}
+                >
+                  <ArrowRight size={22} /> Open Survey & Upload JSON
+                </a>
+
+                {/* Confirmation checkbox */}
+                <label className="mt-4 flex items-start gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    disabled={!hasDownloaded || !hasOpenedSurvey}
+                    checked={confirmedUploaded}
+                    onChange={(e) => setConfirmedUploaded(e.target.checked)}
+                  />
+                  <span>
+                    I uploaded the JSON file in the survey and clicked <strong>Submit</strong>.
+                    <div className="text-xs text-gray-500 mt-1">
+                      (After uploading, return to this tab to finish.)
+                    </div>
+                  </span>
+                </label>
+
+                {!hasDownloaded && (
+                  <p className="text-center text-gray-400 text-sm mt-3">
+                    Please complete Step 1 first to enable upload.
+                  </p>
+                )}
+
+                {hasDownloaded && !hasOpenedSurvey && (
+                  <p className="text-center text-gray-500 text-sm mt-3">
+                    Tip: Click <strong>Open Survey & Upload JSON</strong> first, then come back to confirm.
+                  </p>
+                )}
+              </div>
+
+              {/* Strong warning (always visible until confirmed) */}
+              {!confirmedUploaded && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
                   <p className="text-red-700 text-sm flex items-center gap-2">
                     <AlertCircle size={16} />
-                    <strong>Warning:</strong> If you close this page without downloading, your data will be lost!
+                    <strong>Do not close this page yet.</strong> Downloading does not submit — you must upload the JSON and submit the survey.
                   </p>
                 </div>
               )}
 
-              {/* Continue Button */}
+              {/* Finish button (the only "continue") */}
               <button
                 onClick={handleFinishStudy}
-                disabled={!hasDownloaded}
-                className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                disabled={!hasDownloaded || !confirmedUploaded}
+                className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded && confirmedUploaded
+                  ? "bg-green-600 text-white hover:bg-green-700"
+                  : "bg-gray-200 text-gray-400 cursor-not-allowed"
                   }`}
               >
-                Continue to Upload Instructions <ArrowRight size={22} />
+                I Uploaded & Submitted — Finish <CheckCircle size={22} />
               </button>
 
-              {!hasDownloaded && (
+              {(!hasDownloaded || !confirmedUploaded) && (
                 <p className="text-center text-gray-400 text-sm mt-3">
-                  Please download your results first
+                  Finish is enabled after you upload the JSON and submit the survey.
                 </p>
               )}
+
             </div>
           </div>
         </div>
       );
     }
 
+
     if (finished) return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="max-w-xl w-full bg-white shadow-xl rounded-2xl p-12 text-center">
           <CheckCircle className="mx-auto text-green-500 mb-6" size={80} />
           <h1 className="text-3xl font-bold mb-2">Thank You!</h1>
-          <p className="text-gray-600 mb-6">Your feedback helps us improve LLM matchmaking systems.</p>
+          <p className="text-gray-600 mb-6">
+            Your submission is complete. You may close this tab.
+          </p>
 
-          {/* Download reminder with highlighted styling */}
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 mb-6 text-left border-2 border-green-300">
-            <div className="flex items-center gap-2 mb-3">
-              <CheckCircle className="text-green-500" size={24} />
-              <span className="font-bold text-gray-800">Results Downloaded</span>
-            </div>
-            <p className="text-sm text-gray-600 mb-4">
-              Your results file has been downloaded. Please upload it to complete the study.
-            </p>
-            <button onClick={downloadResults} className="w-full bg-green-100 text-green-700 py-3 rounded-lg font-bold hover:bg-green-200 flex items-center justify-center gap-2 transition">
-              <Download size={18} /> Download Again (if needed)
-            </button>
-          </div>
-
-          {/* Upload to Survey - Highlighted */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 mb-6 text-left border-2 border-blue-400 shadow-lg">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">→</div>
-              <span className="font-bold text-gray-800 text-lg">Final Step: Upload Your Results</span>
-            </div>
-            <p className="text-sm text-gray-600 mb-4">
-              Please upload the JSON file you downloaded to our survey. Your submission is <strong>completely anonymous</strong>.
+          <div className="bg-gray-50 border rounded-xl p-4 text-left">
+            <p className="text-sm text-gray-600">
+              If you need the survey link again:
             </p>
             <a
-              href="https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbesl1iMmrT8"
+              href={SURVEY_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 flex items-center justify-center gap-2 transition shadow-lg text-lg"
+              className="mt-2 inline-flex items-center justify-center w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition"
             >
-              <ArrowRight size={20} /> Go to Survey & Upload File
+              <ArrowRight size={18} className="mr-2" /> Open Survey
             </a>
           </div>
 
-          <p className="text-sm text-gray-400">Session: {sessionId}</p>
+          <p className="text-sm text-gray-400 mt-6">Session: {sessionId}</p>
         </div>
       </div>
     );
+
+
 
     const cupidWins = roundHistory.filter(r => r.cupid_vote).length;
     const baselineWins = roundHistory.filter(r => r.baseline_vote).length;
