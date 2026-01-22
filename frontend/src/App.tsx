@@ -1190,7 +1190,7 @@ const App: React.FC = () => {
       <div className="absolute top-0 right-0 bg-blue-200 text-blue-800 text-xs font-bold px-3 py-1 rounded-bl-lg">{systemLabel}</div>
       <div className="space-y-3 mb-6 mt-4">
         <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center"><span className="text-sm text-gray-500">Total Cost</span><span className="font-mono font-bold text-gray-800 flex items-center"><DollarSign size={14} />{totalCost.toFixed(5)}</span></div>
-        <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center"><span className="text-sm text-gray-500">Times Preferred</span><span className="font-mono font-bold text-gray-800">{winCount} rounds</span></div>
+        <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center"><span className="text-sm text-gray-500">Rounds Completed</span><span className="font-mono font-bold text-gray-800">{winCount}</span></div>
       </div>
       
       {/* Quality Rating */}
@@ -1344,6 +1344,11 @@ const App: React.FC = () => {
               <li>Take your time to read and understand each output before making a choice.</li>
               <li>Your responses are anonymous and will be used only for research purposes.</li>
             </ul>
+
+            <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 mt-4">
+              <p className="font-semibold text-amber-800 mb-1">⚠️ Privacy Notice</p>
+              <p className="text-amber-700 text-sm">Please <strong>do not enter any personal or sensitive information</strong> in your prompts. Your queries and model responses will be collected for research purposes. Avoid sharing names, addresses, phone numbers, or any identifying details.</p>
+            </div>
 
             <p className="text-xs text-gray-500 mt-4 border-t pt-4">Questions? Contact: xinyua11@asu.edu, snguye88@asu.edu, ransalu@asu.edu<br />ASU IRB: (480) 965-6788</p>
           </div>
@@ -1561,6 +1566,10 @@ const App: React.FC = () => {
             <div className="mb-4 text-left">
               <label className="block text-sm font-medium text-gray-700 mb-1">Enter your first query:</label>
               <textarea className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={5} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Type your question or task here..." />
+              <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                <AlertCircle size={12} />
+                <span><strong>Privacy:</strong> Do not enter personal information. Prompts and responses are collected for research.</span>
+              </p>
             </div>
             <button onClick={startSession} disabled={!prompt.trim() || loading} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-2">{loading ? (<><RefreshCw size={16} className="animate-spin" />Starting...</>) : 'Start Comparing'}</button>
           </div>
@@ -1657,7 +1666,7 @@ const App: React.FC = () => {
           {/* No Chat History Note - simplified */}
           <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 flex items-center gap-2">
             <AlertCircle size={14} className="text-amber-600 flex-shrink-0" />
-            <p className="text-xs text-amber-700"><strong>Note:</strong> Models don't remember previous queries. Each round is independent.</p>
+            <p className="text-xs text-amber-700"><strong>Note:</strong> Models don't remember previous queries. Each round is independent. <strong>Do not enter personal information</strong> — prompts and responses are collected for research.</p>
           </div>
 
           <div className="bg-white p-4 rounded-lg shadow-sm border"><span className="text-xs font-bold text-gray-400 uppercase">Your Query</span><p className="text-gray-800 font-medium mt-1">{prompt}</p></div>
@@ -1807,6 +1816,7 @@ const App: React.FC = () => {
             <p className="text-sm text-yellow-800">
               <strong>Focus on the quality of output.</strong> Send the same prompt to both models and compare their responses side by side. 
               This will help you determine which model better suits your needs.
+              <span className="text-yellow-700 ml-1">• <strong>Do not enter personal information</strong> — prompts and responses are collected for research.</span>
             </p>
           </div>
 
