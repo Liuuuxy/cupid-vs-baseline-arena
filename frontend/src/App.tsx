@@ -208,12 +208,12 @@ function sampleBudget(): BudgetConstraints {
   const maxCost = 1.5;
   const minRounds = 5;
   const maxRounds = 15;
-  
+
   // Random cost between 0.5 and 1.5 (rounded to 2 decimal places)
   const randomCost = Math.round((minCost + Math.random() * (maxCost - minCost)) * 100) / 100;
   // Random rounds between 5 and 15 (integer)
   const randomRounds = Math.floor(minRounds + Math.random() * (maxRounds - minRounds + 1));
-  
+
   return { maxRounds: randomRounds, maxCost: randomCost };
 }
 
@@ -244,30 +244,30 @@ interface ModelPoolStats {
 // Sample constraints using min-max rule from Constraint_Picker.ipynb
 function sampleConstraintsDynamic(modelPoolData: ModelPoolStats[], nObjectives: number = 3, kSamples: number = 5): Constraint[] {
   const constraints: Constraint[] = [];
-  
+
   if (modelPoolData.length === 0) return constraints;
-  
+
   // Shuffle and pick n objective columns
   const shuffled = [...OBJECTIVE_COLUMNS].sort(() => Math.random() - 0.5);
   const selectedCols = shuffled.slice(0, Math.min(nObjectives, shuffled.length));
-  
+
   for (const col of selectedCols) {
     // Get all values for this column from model pool
     const values = modelPoolData.map(m => (m as any)[col.key]).filter(v => v !== undefined && v !== null);
-    
+
     if (values.length === 0) continue;
-    
+
     // Sample k values
     const samples: number[] = [];
     for (let i = 0; i < kSamples; i++) {
       samples.push(values[Math.floor(Math.random() * values.length)]);
     }
-    
+
     // For cost columns: use MIN (user wants low cost, so we set upper bound)
     // For benefit columns: use MAX (user wants high value, so we set lower bound)
     let chosenValue: number | boolean;
     let operator: '>=' | '<=' | '==';
-    
+
     if (col.isBoolean) {
       // For boolean, randomly decide if required or not
       chosenValue = Math.random() > 0.5;
@@ -281,7 +281,7 @@ function sampleConstraintsDynamic(modelPoolData: ModelPoolStats[], nObjectives: 
       chosenValue = Math.max(...samples);
       operator = '>=';
     }
-    
+
     constraints.push({
       attribute: col.key,
       operator,
@@ -290,13 +290,13 @@ function sampleConstraintsDynamic(modelPoolData: ModelPoolStats[], nObjectives: 
       unit: col.unit
     });
   }
-  
+
   return constraints;
 }
 
 function formatConstraint(c: Constraint): string {
   const opMap: Record<string, string> = { '>=': '≥', '<=': '≤', '==': '=', '>': '>' };
-  
+
   // For boolean constraints, show cleaner format
   if (typeof c.value === 'boolean') {
     if (c.value === true) {
@@ -305,7 +305,7 @@ function formatConstraint(c: Constraint): string {
       return `${c.displayName}: Not Required`;
     }
   }
-  
+
   const valueStr = typeof c.value === 'number' ? c.value.toLocaleString() : String(c.value);
   return `${c.displayName} ${opMap[c.operator]} ${valueStr}${c.unit ? ` ${c.unit}` : ''}`;
 }
@@ -436,7 +436,7 @@ const App: React.FC = () => {
   const [openTestLoading, setOpenTestLoading] = useState<boolean>(false);
   const [openTestRoundsA, setOpenTestRoundsA] = useState<number>(0);
   const [openTestRoundsB, setOpenTestRoundsB] = useState<number>(0);
-  
+
   // Side-by-side comparison state for open testing
   interface SideBySideRound {
     prompt: string;
@@ -656,7 +656,7 @@ const App: React.FC = () => {
   // Send to BOTH systems for side-by-side comparison
   const sendSideBySideMessage = async () => {
     if (!openTestInput.trim() || openTestLoading) return;
-    
+
     const totalRounds = sideBySideRounds.length;
     if (totalRounds >= OPEN_TESTING_MAX_ROUNDS) {
       setError(`Maximum of ${OPEN_TESTING_MAX_ROUNDS} comparison rounds reached.`);
@@ -739,12 +739,12 @@ const App: React.FC = () => {
           constraints: assignedConstraints,
           budget: budgetConstraints,
           history: roundHistory,
-          evaluation: { 
-            quality_rating_a: evalRatingA, 
-            quality_rating_b: evalRatingB, 
+          evaluation: {
+            quality_rating_a: evalRatingA,
+            quality_rating_b: evalRatingB,
             budget_rating_a: evalBudgetRatingA,
             budget_rating_b: evalBudgetRatingB,
-            comment: evalComment 
+            comment: evalComment
           },
           final_cost_a: (arenaState?.cupid_cost || 0) + (arenaState?.routing_cost || 0),
           final_cost_b: arenaState?.baseline_cost || 0,
@@ -905,8 +905,8 @@ const App: React.FC = () => {
     await fetchNextRound(false, nextPrompt);
   };
 
-  const handleFinalSubmit = async () => { 
-    await saveSessionData(); 
+  const handleFinalSubmit = async () => {
+    await saveSessionData();
     // Show download reminder before finishing
     setShowDownloadReminder(true);
   };
@@ -925,41 +925,41 @@ const App: React.FC = () => {
     // Get the final model info for each system
     // For cupid (System A): use the last voted model from history
     const lastRound = roundHistory[roundHistory.length - 1];
-    const cupidFinalModelId = lastRound ? 
+    const cupidFinalModelId = lastRound ?
       (lastRound.cupid_vote === 'left' ? lastRound.cupid_left_id : lastRound.cupid_right_id) : null;
     const baselineFinalModelId = lastRound ?
       (lastRound.baseline_vote === 'left' ? lastRound.baseline_left_id : lastRound.baseline_right_id) : null;
-    
+
     // Get final model stats - MUST match the voted model, not just any available stats
     // The stats in arenaState are for the CURRENT round's pair, but we need stats for the voted model
     // Use the vote to get the correct side's stats
-    const cupidFinalStats = lastRound?.cupid_vote === 'left' 
-      ? arenaState?.cupid_pair?.left_stats 
+    const cupidFinalStats = lastRound?.cupid_vote === 'left'
+      ? arenaState?.cupid_pair?.left_stats
       : arenaState?.cupid_pair?.right_stats;
     const baselineFinalStats = lastRound?.baseline_vote === 'left'
-      ? arenaState?.baseline_pair?.left_stats 
+      ? arenaState?.baseline_pair?.left_stats
       : arenaState?.baseline_pair?.right_stats;
-    
+
     // Calculate total costs from arenaState (interaction phase)
     // cupid_cost and baseline_cost are cumulative totals from backend
     // routing_cost is the cumulative total for the feedback/routing model (Grok)
     const interactionPhaseCupidCost = arenaState?.cupid_cost || 0;
     const interactionPhaseBaselineCost = arenaState?.baseline_cost || 0;
     const interactionPhaseRoutingCost = arenaState?.routing_cost || 0;
-    
+
     // Open testing costs
     const openTestCostA = sideBySideRounds.reduce((sum, r) => sum + r.costA, 0);
     const openTestCostB = sideBySideRounds.reduce((sum, r) => sum + r.costB, 0);
-    
+
     const results = {
-      session_id: sessionId, 
+      session_id: sessionId,
       timestamp: new Date().toISOString(),
-      demographics, 
+      demographics,
       persona_group: personaGroup,
-      expert_subject: selectedExpertSubject, 
+      expert_subject: selectedExpertSubject,
       constraints: assignedConstraints,
-      budget: budgetConstraints, 
-      
+      budget: budgetConstraints,
+
       // Comprehensive final state
       final_state: {
         system_a: {
@@ -989,31 +989,31 @@ const App: React.FC = () => {
         },
         terminated_early: roundHistory.length < budgetConstraints.maxRounds,
       },
-      
+
       // Detailed history with costs
       history: roundHistory,
-      
+
       // Side-by-side testing data
       open_testing: {
         rounds: sideBySideRounds.length,
         data: sideBySideRounds,
       },
-      
+
       // Evaluation ratings
-      evaluation: { 
-        quality_rating_a: evalRatingA, 
-        quality_rating_b: evalRatingB, 
+      evaluation: {
+        quality_rating_a: evalRatingA,
+        quality_rating_b: evalRatingB,
         budget_rating_a: evalBudgetRatingA,
         budget_rating_b: evalBudgetRatingB,
-        comment: evalComment 
+        comment: evalComment
       },
     };
-    
+
     const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; 
-    a.download = `llm_matching_results_${sessionId}.json`; 
+    a.href = url;
+    a.download = `llm_matching_results_${sessionId}.json`;
     a.click();
     setHasDownloaded(true);
   };
@@ -1129,7 +1129,7 @@ const App: React.FC = () => {
             </div>
           )}
         </div>
-        
+
         {/* Markdown rendered content */}
         <div onClick={() => setVote(side)} className="flex-grow cursor-pointer overflow-y-auto h-48 md:h-auto md:max-h-64 mb-3">
           {data.text ? (
@@ -1192,7 +1192,7 @@ const App: React.FC = () => {
         <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center"><span className="text-sm text-gray-500">Total Cost</span><span className="font-mono font-bold text-gray-800 flex items-center"><DollarSign size={14} />{totalCost.toFixed(5)}</span></div>
         <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center"><span className="text-sm text-gray-500">Rounds Completed</span><span className="font-mono font-bold text-gray-800">{winCount}</span></div>
       </div>
-      
+
       {/* Quality Rating */}
       <div className="mb-6">
         <label className="block text-sm font-bold text-blue-900 mb-3 text-center">⭐ Rate Model Quality</label>
@@ -1240,50 +1240,50 @@ const App: React.FC = () => {
   // Tutorial Modal Component
   const renderTutorialModal = () => {
     if (!showInteractionTutorial && !showTestingTutorial) return null;
-    
+
     const steps = showInteractionTutorial ? INTERACTION_TUTORIAL_STEPS : TESTING_TUTORIAL_STEPS;
     const currentStep = steps[tutorialStep];
     const totalSteps = steps.length;
     const title = showInteractionTutorial ? 'Interaction Tutorial' : 'Testing Tutorial';
-    
+
     return (
       <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl max-w-lg w-full p-8 relative">
           {/* Progress indicator */}
           <div className="flex justify-center gap-2 mb-6">
             {steps.map((_, idx) => (
-              <div 
-                key={idx} 
+              <div
+                key={idx}
                 className={`w-3 h-3 rounded-full transition-all ${idx === tutorialStep ? 'bg-blue-600 scale-110' : idx < tutorialStep ? 'bg-blue-300' : 'bg-gray-200'}`}
               />
             ))}
           </div>
-          
+
           {/* Content */}
           <div className="text-center mb-8">
             <div className="text-5xl mb-4">{currentStep.icon}</div>
             <h3 className="text-xl font-bold text-gray-800 mb-3">{currentStep.title}</h3>
             <p className="text-gray-600 leading-relaxed">{currentStep.description}</p>
           </div>
-          
+
           {/* Navigation */}
           <div className="flex gap-3">
             {tutorialStep > 0 ? (
-              <button 
+              <button
                 onClick={handlePrevTutorialStep}
                 className="flex-1 py-3 px-4 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 font-medium flex items-center justify-center gap-2"
               >
                 <ArrowLeft size={18} /> Back
               </button>
             ) : (
-              <button 
+              <button
                 onClick={handleSkipTutorial}
                 className="flex-1 py-3 px-4 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 font-medium"
               >
                 Skip Tutorial
               </button>
             )}
-            <button 
+            <button
               onClick={handleNextTutorialStep}
               className="flex-1 py-3 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
             >
@@ -1294,7 +1294,7 @@ const App: React.FC = () => {
               )}
             </button>
           </div>
-          
+
           {/* Step counter */}
           <p className="text-center text-xs text-gray-400 mt-4">
             Step {tutorialStep + 1} of {totalSteps}
@@ -1321,7 +1321,7 @@ const App: React.FC = () => {
               <p className="font-semibold text-blue-800 mb-1">🎯 Goal of This Study</p>
               <p className="text-blue-700 text-sm">Help us evaluate and compare two AI model matching systems. Your ratings will determine which system is better at finding the right model for your needs.</p>
             </div>
-            
+
             <p>Thank you for participating in this study. In this experiment, you will help us compare two systems by interacting with both and providing your preferences. Your feedback will help us improve LLM matchmaking systems and how they are presented to users.</p>
 
             <h3 className="text-lg font-semibold mt-4">Settings</h3>
@@ -1329,7 +1329,7 @@ const App: React.FC = () => {
 
             <h3 className="text-lg font-semibold mt-4">What You Will Do</h3>
             <p>You will interact with <strong>two systems concurrently</strong>. You will be shown two outputs for the same task or query in each system. The cost of the two systems will be shown separately and you will see how much you spent on each system.</p>
-            <p>Your task is to <strong>compare the two outputs</strong> in each system and indicate which one you prefer.</p>
+            <p>Your task is to <strong>compare the two outputs in each system</strong> and indicate which one you prefer.</p>
             <p>In both systems, you can provide <strong>language feedback</strong>. This gives you an option to dictate the system to your personal preference. For example, you could ask for a cheaper model: <em>"Please give me a cheaper model"</em>, or a model that is more capable: <em>"Please give me a smarter model."</em></p>
             <p>You will repeat this process for multiple rounds with different queries. <strong>If you are satisfied with your model, you can opt to end the drafting process.</strong></p>
             <p>After the drafting process, you are allowed to <strong>play with your chosen models</strong> from the two systems (up to 10 rounds each). You then will assign a rating for each model.</p>
@@ -1499,8 +1499,8 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={handleCalibrationSubmit}
                 className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition text-lg"
               >
@@ -1544,7 +1544,7 @@ const App: React.FC = () => {
             <p className="text-sm text-gray-500 mb-4">You have up to {budgetConstraints.maxRounds} rounds to find your ideal model</p>
 
             {/* Tutorial button */}
-            <button 
+            <button
               onClick={() => { setShowInteractionTutorial(true); setTutorialStep(0); }}
               className="mb-4 text-sm text-blue-600 hover:text-blue-800 underline flex items-center justify-center gap-1 mx-auto"
             >
@@ -1634,8 +1634,8 @@ const App: React.FC = () => {
                 <div>
                   <h3 className="font-bold text-purple-900 mb-1">Your Task: Find a Model that Meets Your Requirements</h3>
                   <p className="text-sm text-purple-800">
-                    Compare the <strong>Model Specifications</strong> below each response against your requirements shown above. 
-                    Select the output from the model that better matches your constraints, then use the feedback field to guide the system 
+                    Compare the <strong>Model Specifications</strong> below each response against your requirements shown above.
+                    Select the output from the model that better matches your constraints, then use the feedback field to guide the system
                     (e.g., "I need a cheaper model" or "Give me higher intelligence").
                   </p>
                 </div>
@@ -1679,15 +1679,15 @@ const App: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{renderModelCard('left', arenaState?.cupid_pair.left, cupidVote, setCupidVote, 'blue', 'cupid')}{renderModelCard('right', arenaState?.cupid_pair.right, cupidVote, setCupidVote, 'blue', 'cupid')}</div>
             <div className="mt-4 bg-blue-50 p-4 rounded-lg border border-blue-100">
               <label className="flex items-center text-sm font-bold text-blue-900 mb-2"><MessageSquare size={16} className="mr-2" />Language Feedback (optional)</label>
-              <input 
-                type="text" 
-                className="w-full border border-blue-200 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
-                placeholder={personaGroup === 'traditional' 
-                  ? 'e.g., "I need a cheaper model", "Give me higher intelligence", "I want faster speed"' 
+              <input
+                type="text"
+                className="w-full border border-blue-200 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder={personaGroup === 'traditional'
+                  ? 'e.g., "I need a cheaper model", "Give me higher intelligence", "I want faster speed"'
                   : 'e.g., "Please give me a smarter model" or "I prefer more concise responses"'
-                } 
-                value={feedbackA} 
-                onChange={(e) => setFeedbackA(e.target.value)} 
+                }
+                value={feedbackA}
+                onChange={(e) => setFeedbackA(e.target.value)}
               />
             </div>
           </section>
@@ -1702,15 +1702,15 @@ const App: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{renderModelCard('left', arenaState?.baseline_pair.left, baselineVote, setBaselineVote, 'blue', 'baseline')}{renderModelCard('right', arenaState?.baseline_pair.right, baselineVote, setBaselineVote, 'blue', 'baseline')}</div>
             <div className="mt-4 bg-blue-50 p-4 rounded-lg border border-blue-100">
               <label className="flex items-center text-sm font-bold text-blue-900 mb-2"><MessageSquare size={16} className="mr-2" />Language Feedback (optional)</label>
-              <input 
-                type="text" 
-                className="w-full border border-blue-200 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
-                placeholder={personaGroup === 'traditional' 
-                  ? 'e.g., "I need a cheaper model", "Give me higher intelligence", "I want faster speed"' 
+              <input
+                type="text"
+                className="w-full border border-blue-200 rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder={personaGroup === 'traditional'
+                  ? 'e.g., "I need a cheaper model", "Give me higher intelligence", "I want faster speed"'
                   : 'e.g., "Please give me a smarter model" or "I prefer more concise responses"'
-                } 
-                value={feedbackB} 
-                onChange={(e) => setFeedbackB(e.target.value)} 
+                }
+                value={feedbackB}
+                onChange={(e) => setFeedbackB(e.target.value)}
               />
             </div>
           </section>
@@ -1781,14 +1781,14 @@ const App: React.FC = () => {
               <p className="text-sm text-gray-500">Test both matched models side-by-side ({sideBySideRounds.length}/{OPEN_TESTING_MAX_ROUNDS} rounds)</p>
             </div>
             <div className="flex items-center gap-3">
-              <button 
+              <button
                 onClick={() => { setShowTestingTutorial(true); setTutorialStep(0); }}
                 className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
               >
                 <HelpCircle size={14} /> Tutorial
               </button>
-              <button 
-                onClick={() => setPhase('evaluation')} 
+              <button
+                onClick={() => setPhase('evaluation')}
                 disabled={!hasTestedModels}
                 className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -1797,7 +1797,7 @@ const App: React.FC = () => {
             </div>
           </div>
         </header>
-        
+
         <main className="flex-grow max-w-7xl mx-auto w-full p-4 flex flex-col gap-4">
           {/* Stage Introduction */}
           <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
@@ -1806,7 +1806,7 @@ const App: React.FC = () => {
               <span className="font-bold text-green-800">Testing Stage</span>
             </div>
             <p className="text-sm text-green-700">
-              Now test both matched models by sending the same prompt to both. Compare their outputs side-by-side to determine which system found a better model for you. 
+              Now test both matched models by sending the same prompt to both. Compare their outputs side-by-side to determine which system found a better model for you.
               <strong> You must test at least once before rating.</strong>
             </p>
           </div>
@@ -1814,7 +1814,7 @@ const App: React.FC = () => {
           {/* Instructions */}
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             <p className="text-sm text-yellow-800">
-              <strong>Focus on the quality of output.</strong> Send the same prompt to both models and compare their responses side by side. 
+              <strong>Focus on the quality of output.</strong> Send the same prompt to both models and compare their responses side by side.
               This will help you determine which model better suits your needs.
               <span className="text-yellow-700 ml-1">• <strong>Do not enter personal information</strong> — prompts and responses are collected for research.</span>
             </p>
@@ -1824,7 +1824,7 @@ const App: React.FC = () => {
           {personaGroup === 'expert' && selectedExpertSubject && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <p className="text-sm text-blue-800">
-                <strong>Reminder:</strong> You are evaluating as a <strong>{EXPERT_SUBJECTS.find(s => s.id === selectedExpertSubject)?.label}</strong> expert. 
+                <strong>Reminder:</strong> You are evaluating as a <strong>{EXPERT_SUBJECTS.find(s => s.id === selectedExpertSubject)?.label}</strong> expert.
                 Ask technical questions in your field to test model capabilities.
               </p>
             </div>
@@ -1879,7 +1879,7 @@ const App: React.FC = () => {
                   <span className="text-xs font-bold text-gray-500 uppercase">Your Prompt (Round {i + 1})</span>
                   <p className="text-gray-800 mt-1">{round.prompt}</p>
                 </div>
-                
+
                 {/* Side-by-side responses */}
                 <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x">
                   {/* System A Response */}
@@ -1892,7 +1892,7 @@ const App: React.FC = () => {
                       <Markdown content={round.responseA} />
                     </div>
                   </div>
-                  
+
                   {/* System B Response */}
                   <div className="p-4">
                     <div className="flex justify-between items-center mb-3">
@@ -1954,7 +1954,7 @@ const App: React.FC = () => {
               <h1 className="text-2xl font-bold">Important: Save Your Results!</h1>
               <p className="opacity-90 mt-2">Please download your results before closing this page</p>
             </div>
-            
+
             <div className="p-8">
               {/* Step 1: Download */}
               <div className={`rounded-xl p-6 mb-6 border-2 ${hasDownloaded ? 'bg-green-50 border-green-300' : 'bg-yellow-50 border-yellow-400'}`}>
@@ -1970,13 +1970,12 @@ const App: React.FC = () => {
                 <p className="text-sm text-gray-600 mb-4">
                   Your study data will be saved as a JSON file. You will need to upload this file in the next step.
                 </p>
-                <button 
-                  onClick={handleDownloadAndFinish} 
-                  className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${
-                    hasDownloaded 
-                      ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                <button
+                  onClick={handleDownloadAndFinish}
+                  className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded
+                      ? 'bg-green-100 text-green-700 hover:bg-green-200'
                       : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 shadow-lg'
-                  }`}
+                    }`}
                 >
                   <Download size={22} /> {hasDownloaded ? 'Download Again' : 'Download JSON File'}
                 </button>
@@ -1993,18 +1992,17 @@ const App: React.FC = () => {
               )}
 
               {/* Continue Button */}
-              <button 
+              <button
                 onClick={handleFinishStudy}
                 disabled={!hasDownloaded}
-                className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${
-                  hasDownloaded 
-                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
+                  }`}
               >
                 Continue to Upload Instructions <ArrowRight size={22} />
               </button>
-              
+
               {!hasDownloaded && (
                 <p className="text-center text-gray-400 text-sm mt-3">
                   Please download your results first
@@ -2022,7 +2020,7 @@ const App: React.FC = () => {
           <CheckCircle className="mx-auto text-green-500 mb-6" size={80} />
           <h1 className="text-3xl font-bold mb-2">Thank You!</h1>
           <p className="text-gray-600 mb-6">Your feedback helps us improve LLM matchmaking systems.</p>
-          
+
           {/* Download reminder with highlighted styling */}
           <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 mb-6 text-left border-2 border-green-300">
             <div className="flex items-center gap-2 mb-3">
@@ -2046,9 +2044,9 @@ const App: React.FC = () => {
             <p className="text-sm text-gray-600 mb-4">
               Please upload the JSON file you downloaded to our survey. Your submission is <strong>completely anonymous</strong>.
             </p>
-            <a 
-              href="https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbesl1iMmrT8" 
-              target="_blank" 
+            <a
+              href="https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbesl1iMmrT8"
+              target="_blank"
               rel="noopener noreferrer"
               className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 flex items-center justify-center gap-2 transition shadow-lg text-lg"
             >
@@ -2068,11 +2066,11 @@ const App: React.FC = () => {
 
     // Get final model stats for traditional group - use the voted model's stats
     const lastRound = roundHistory[roundHistory.length - 1];
-    const finalCupidStats = lastRound?.cupid_vote === 'left' 
-      ? arenaState?.cupid_pair?.left_stats 
+    const finalCupidStats = lastRound?.cupid_vote === 'left'
+      ? arenaState?.cupid_pair?.left_stats
       : arenaState?.cupid_pair?.right_stats;
     const finalBaselineStats = lastRound?.baseline_vote === 'left'
-      ? arenaState?.baseline_pair?.left_stats 
+      ? arenaState?.baseline_pair?.left_stats
       : arenaState?.baseline_pair?.right_stats;
 
     return (
@@ -2080,8 +2078,8 @@ const App: React.FC = () => {
         <div className="max-w-5xl w-full bg-white shadow-xl rounded-2xl overflow-hidden">
           <div className="bg-blue-600 p-6 text-white text-center relative">
             {/* Go Back Button */}
-            <button 
-              onClick={() => setPhase('openTesting')} 
+            <button
+              onClick={() => setPhase('openTesting')}
               className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition"
             >
               <ArrowLeft size={16} /> Back to Testing
@@ -2089,7 +2087,7 @@ const App: React.FC = () => {
             <h1 className="text-2xl font-bold">Final Evaluation</h1>
             <p className="opacity-90">Rate each system based on model quality and budget adherence</p>
           </div>
-          
+
           <div className="p-4 md:p-8 bg-gray-50">
             {/* Session Info */}
             <div className="text-center mb-6">
@@ -2162,7 +2160,7 @@ const App: React.FC = () => {
                   </div>
                 )}
               </div>
-              
+
               <div className="space-y-4">
                 {renderEvalCard("System B", systemBCost, evalRatingB, setEvalRatingB, evalBudgetRatingB, setEvalBudgetRatingB, baselineWins)}
                 {/* Model info for traditional group */}
@@ -2187,22 +2185,22 @@ const App: React.FC = () => {
                 )}
               </div>
             </div>
-            
+
             <div className="max-w-2xl mx-auto space-y-6">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Any final thoughts? (optional)</label>
                 <textarea className="w-full border rounded-lg p-3 h-24 bg-white" placeholder="What worked well? What could be improved?" value={evalComment} onChange={(e) => setEvalComment(e.target.value)} />
               </div>
               <div className="flex gap-4">
-                <button 
-                  onClick={() => setPhase('openTesting')} 
+                <button
+                  onClick={() => setPhase('openTesting')}
                   className="flex-1 bg-gray-200 text-gray-700 py-4 rounded-lg font-bold hover:bg-gray-300 transition flex items-center justify-center"
                 >
                   <ArrowLeft className="mr-2" size={18} /> Back to Testing
                 </button>
-                <button 
-                  onClick={handleFinalSubmit} 
-                  disabled={evalRatingA === 0 || evalRatingB === 0 || evalBudgetRatingA === 0 || evalBudgetRatingB === 0 || !hasTestedModels} 
+                <button
+                  onClick={handleFinalSubmit}
+                  disabled={evalRatingA === 0 || evalRatingB === 0 || evalBudgetRatingA === 0 || evalBudgetRatingB === 0 || !hasTestedModels}
                   className="flex-1 bg-blue-600 text-white py-4 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center"
                 >
                   Submit & Finish <ArrowRight className="ml-2" size={18} />
