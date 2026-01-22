@@ -1319,50 +1319,83 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="max-w-3xl w-full bg-white shadow-xl rounded-2xl overflow-hidden flex flex-col">
+          {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 md:p-8 text-white text-center">
             <h1 className="text-2xl md:text-3xl font-bold">LLM Matchmaking Study</h1>
             <p className="opacity-90">Find Your Dream Model</p>
             <p className="text-xs mt-2 opacity-75">IRB ID: STUDY00023557</p>
           </div>
+
+          {/* Scrollable Content */}
           <div className="p-6 md:p-8 overflow-y-auto max-h-[60vh] prose prose-sm max-w-none text-gray-700">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <p className="font-semibold text-blue-800 mb-1">🎯 Goal of This Study</p>
-              <p className="text-blue-700 text-sm">Help us evaluate and compare two AI model matching systems. Your ratings will determine which system is better at finding the right model for your needs.</p>
+
+            {/* The Goal */}
+            <div className="bg-blue-50 border-l-4 border-blue-600 p-4 mb-6 rounded-r-md">
+              <h3 className="text-blue-900 font-bold m-0 text-base">🎯 Your Mission</h3>
+              <p className="text-blue-800 m-0 mt-1">
+                Find the best AI model for your needs among <strong>25 hidden options</strong> (ranging from cheap/fast to expensive/smart).
+              </p>
             </div>
 
-            <p>Thank you for participating in this study. In this experiment, you will help us compare two systems by interacting with both and providing your preferences. Your feedback will help us improve LLM matchmaking systems and how they are presented to users.</p>
+            <h3 className="font-bold text-gray-900 border-b pb-2">How to Participate</h3>
 
-            <h3 className="text-lg font-semibold mt-4">Settings</h3>
-            <p>There are <strong>25 LLM models from OpenAI</strong> ready for you to use. As a user, it might be difficult choosing a suitable model for your task. Our system will help you find your dream model.</p>
+            <div className="space-y-4 mt-4">
+              {/* Phase 1 */}
+              <div className="flex gap-3">
+                <div className="flex-shrink-0 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold text-sm">1</div>
+                <div>
+                  <h4 className="font-bold text-gray-900 m-0">The Search (Matchmaking)</h4>
+                  <p className="m-0 text-sm mb-2">
+                    Chat with two systems (A & B) simultaneously. For every prompt, pick the winner based on <strong>Quality</strong> and <strong>Cost</strong>.
+                  </p>
+                  <div className="bg-gray-100 p-3 rounded-md text-sm border border-gray-200">
+                    <span className="font-bold text-indigo-600">💡 Pro Tip: Guide the System</span>
+                    <br />
+                    Don't just chat! Tell the system what you need.
+                    <br />
+                    <em>"This is too expensive, find me a cheaper model"</em> or <em>"I need better reasoning capabilities."</em>
+                  </div>
+                </div>
+              </div>
 
-            <h3 className="text-lg font-semibold mt-4">What You Will Do</h3>
-            <p>You will interact with <strong>two systems concurrently</strong>. You will be shown two outputs for the same task or query in each system. The cost of the two systems will be shown separately and you will see how much you spent on each system.</p>
-            <p>Your task is to <strong>compare the two outputs</strong> in each system and indicate which one you prefer.</p>
-            <p>In both systems, you can provide <strong>language feedback</strong>. This gives you an option to dictate the system to your personal preference. For example, you could ask for a cheaper model: <em>"Please give me a cheaper model"</em>, or a model that is more capable: <em>"Please give me a smarter model."</em></p>
-            <p>You will repeat this process for multiple rounds with different queries. <strong>If you are satisfied with your model, you can opt to end the drafting process.</strong></p>
-            <p>After the drafting process, you are allowed to <strong>play with your chosen models</strong> from the two systems (up to 10 rounds each). You then will assign a rating for each model.</p>
-
-            <h3 className="text-lg font-semibold mt-4">Instructions for Comparison</h3>
-            <p>Focus on the quality and the cost of the outputs. You will not see the model's name, but will be provided some information about the LLMs such as its intelligence ratings, input cost, output cost, etc. from OpenAI.</p>
-            <p><strong>There are no right or wrong answers</strong>—choose the output that you think is better overall.</p>
-
-            <h3 className="text-lg font-semibold mt-4">Important Notes</h3>
-            <ul>
-              <li>Please <strong>do not try to guess which system/LLM produced which output</strong>. Focus on your genuine preference.</li>
-              <li>Take your time to read and understand each output before making a choice.</li>
-              <li>Your responses are anonymous and will be used only for research purposes.</li>
-            </ul>
-
-            <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 mt-4">
-              <p className="font-semibold text-amber-800 mb-1">⚠️ Privacy Notice</p>
-              <p className="text-amber-700 text-sm">Please <strong>do not enter any personal or sensitive information</strong> in your prompts. Your queries and model responses will be collected for research purposes. Avoid sharing names, addresses, phone numbers, or any identifying details.</p>
+              {/* Phase 2 */}
+              <div className="flex gap-3">
+                <div className="flex-shrink-0 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold text-sm">2</div>
+                <div>
+                  <h4 className="font-bold text-gray-900 m-0">The Test (Verification)</h4>
+                  <p className="m-0 text-sm">
+                    Once you are satisfied with a model, click <strong>Finish Matching</strong>. You will then have 10 rounds to test-drive your chosen model to ensure it truly fits your needs.
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <p className="text-xs text-gray-500 mt-4 border-t pt-4">Questions? Contact: xinyua11@asu.edu, snguye88@asu.edu, ransalu@asu.edu<br />ASU IRB: (480) 965-6788</p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-6 flex gap-3 items-start">
+              <span className="text-xl">⚠️</span>
+              <div>
+                <p className="font-bold text-amber-900 text-xs uppercase mb-1">Privacy Notice</p>
+                <p className="text-amber-800 text-xs m-0">
+                  <strong>Do not enter personal info</strong> (names, addresses, phone numbers). All queries are collected for research.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-400 mt-6 pt-4 border-t text-center">
+              Questions? Contact: xinyua11@asu.edu | ASU IRB: (480) 965-6788
+            </p>
           </div>
+
+          {/* Footer / Agree Button */}
           <div className="p-4 md:p-6 bg-gray-50 border-t flex flex-col items-center gap-4">
-            <p className="text-xs md:text-sm text-gray-600 text-center max-w-xl">By clicking below, you confirm you are at least 18 years old and agree to participate.</p>
-            <button onClick={handleConsent} className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold hover:bg-blue-700 transition-transform transform hover:scale-105 flex items-center"><CheckCircle size={20} className="mr-2" /> I Agree to Participate</button>
+            <p className="text-xs md:text-sm text-gray-600 text-center max-w-xl">
+              By clicking below, you confirm you are at least 18 years old and agree to participate.
+            </p>
+            <button
+              onClick={handleConsent}
+              className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold hover:bg-blue-700 transition-transform transform hover:scale-105 flex items-center shadow-lg"
+            >
+              <CheckCircle size={20} className="mr-2" /> I Agree to Participate
+            </button>
           </div>
         </div>
       </div>
@@ -1981,8 +2014,8 @@ const App: React.FC = () => {
                 <button
                   onClick={handleDownloadAndFinish}
                   className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded
-                      ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                      : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 shadow-lg'
+                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                    : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 shadow-lg'
                     }`}
                 >
                   <Download size={22} /> {hasDownloaded ? 'Download Again' : 'Download JSON File'}
@@ -2004,8 +2037,8 @@ const App: React.FC = () => {
                 onClick={handleFinishStudy}
                 disabled={!hasDownloaded}
                 className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   }`}
               >
                 Continue to Upload Instructions <ArrowRight size={22} />
