@@ -9,6 +9,7 @@ import uuid
 import json
 from typing import Dict, Any, List, Optional, Tuple
 from collections import Counter, deque
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -17,6 +18,14 @@ import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+# Database imports
+try:
+    from databases import Database
+    DATABASE_AVAILABLE = True
+except ImportError:
+    DATABASE_AVAILABLE = False
+    print("Warning: databases package not available. Results will not be saved to database.")
 
 # Conditional imports for CUPID GP model
 try:
@@ -44,6 +53,16 @@ OPENROUTER_HEADERS = {
 # Model pool path - adjust as needed
 MODEL_POOL_PATH = os.environ.get("MODEL_POOL_PATH", "./model-pool.csv")
 MODEL_POOL_LOCAL = os.environ.get("MODEL_POOL_LOCAL", "./model-pool.csv")
+
+# Database configuration
+# Set DATABASE_URL in your environment (Render provides this automatically for PostgreSQL)
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+# Render uses 'postgres://' but asyncpg needs 'postgresql://'
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# Initialize database connection
+database = Database(DATABASE_URL) if DATABASE_URL and DATABASE_AVAILABLE else None
 
 
 # ================== Load Model Pool ==================
@@ -826,6 +845,52 @@ app.add_middleware(
 )
 
 
+# ================== Database Events ==================
+@app.on_event("startup")
+async def startup():
+    """Initialize database connection and create tables."""
+    if database:
+        try:
+            await database.connect()
+            print("✅ Database connected successfully")
+            
+            # Create results table if it doesn't exist
+            await database.execute("""
+                CREATE TABLE IF NOT EXISTS study_results (
+                    id SERIAL PRIMARY KEY,
+                    session_id VARCHAR(255) UNIQUE NOT NULL,
+                    persona_group VARCHAR(50),
+                    results_json JSONB NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Create indexes separately
+            await database.execute("""
+                CREATE INDEX IF NOT EXISTS idx_session_id ON study_results(session_id)
+            """)
+            await database.execute("""
+                CREATE INDEX IF NOT EXISTS idx_persona_group ON study_results(persona_group)
+            """)
+            await database.execute("""
+                CREATE INDEX IF NOT EXISTS idx_created_at ON study_results(created_at)
+            """)
+            
+            print("✅ Database table ready")
+        except Exception as e:
+            print(f"⚠️ Database connection failed: {e}")
+    else:
+        print("ℹ️ Database not configured - results will not be saved automatically")
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    """Close database connection."""
+    if database:
+        await database.disconnect()
+        print("Database disconnected")
+
+
 # ================== Request/Response Models ==================
 class InteractRequest(BaseModel):
     session_id: Optional[str] = Field(None, description="Session ID for continuity")
@@ -931,11 +996,21 @@ async def root():
 
 @app.get("/health")
 async def health_check():
+    db_status = "not_configured"
+    if database:
+        try:
+            # Test database connection
+            await database.execute("SELECT 1")
+            db_status = "connected"
+        except Exception:
+            db_status = "error"
+    
     return {
         "status": "healthy",
         "botorch_available": BOTORCH_AVAILABLE,
         "num_models": num_models,
         "openrouter_configured": bool(OPENROUTER_API_KEY),
+        "database_status": db_status,
     }
 
 
@@ -997,6 +1072,189 @@ async def get_model_pool_stats():
             "max_output": safe_int(row.get("max-output")),
         })
     return {"models": stats, "count": len(stats)}
+
+
+# ================== Save Results Endpoint ==================
+class SaveResultsRequest(BaseModel):
+    """Request model for saving study results."""
+    session_id: str
+    timestamp: str
+    demographics: Optional[Dict[str, Any]] = None
+    persona_group: Optional[str] = None
+    expert_subject: Optional[str] = None
+    constraints: Optional[List[Dict[str, Any]]] = None
+    budget: Optional[Dict[str, Any]] = None
+    final_state: Optional[Dict[str, Any]] = None
+    history: Optional[List[Dict[str, Any]]] = None
+    open_testing: Optional[Dict[str, Any]] = None
+    evaluation: Optional[Dict[str, Any]] = None
+
+
+@app.post("/save-results")
+async def save_results(request: SaveResultsRequest):
+    """
+    Save study results to database.
+    This endpoint is called when the user completes the study.
+    """
+    if not database:
+        return {
+            "success": False,
+            "message": "Database not configured. Please download results manually.",
+            "saved": False
+        }
+    
+    try:
+        # Convert request to dict for JSON storage
+        results_dict = request.model_dump()
+        
+        # Check if session already exists (update vs insert)
+        existing = await database.fetch_one(
+            query="SELECT id FROM study_results WHERE session_id = :session_id",
+            values={"session_id": request.session_id}
+        )
+        
+        if existing:
+            # Update existing record
+            await database.execute(
+                query="""
+                UPDATE study_results 
+                SET results_json = :results_json, 
+                    persona_group = :persona_group,
+                    created_at = CURRENT_TIMESTAMP
+                WHERE session_id = :session_id
+                """,
+                values={
+                    "session_id": request.session_id,
+                    "persona_group": request.persona_group,
+                    "results_json": json.dumps(results_dict)
+                }
+            )
+            return {
+                "success": True,
+                "message": "Results updated successfully",
+                "saved": True,
+                "session_id": request.session_id
+            }
+        else:
+            # Insert new record
+            await database.execute(
+                query="""
+                INSERT INTO study_results (session_id, persona_group, results_json)
+                VALUES (:session_id, :persona_group, :results_json)
+                """,
+                values={
+                    "session_id": request.session_id,
+                    "persona_group": request.persona_group,
+                    "results_json": json.dumps(results_dict)
+                }
+            )
+            return {
+                "success": True,
+                "message": "Results saved successfully",
+                "saved": True,
+                "session_id": request.session_id
+            }
+    
+    except Exception as e:
+        print(f"Error saving results: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to save results: {str(e)}",
+            "saved": False
+        }
+
+
+@app.get("/results")
+async def get_all_results():
+    """
+    Get all saved study results (for research/admin use).
+    Returns summary statistics and list of sessions.
+    """
+    if not database:
+        raise HTTPException(status_code=503, detail="Database not configured")
+    
+    try:
+        # Get count by persona group
+        counts = await database.fetch_all(
+            query="""
+            SELECT persona_group, COUNT(*) as count 
+            FROM study_results 
+            GROUP BY persona_group
+            """
+        )
+        
+        # Get recent sessions
+        recent = await database.fetch_all(
+            query="""
+            SELECT session_id, persona_group, created_at 
+            FROM study_results 
+            ORDER BY created_at DESC 
+            LIMIT 50
+            """
+        )
+        
+        total = sum(row['count'] for row in counts)
+        
+        return {
+            "total_sessions": total,
+            "by_group": {row['persona_group']: row['count'] for row in counts},
+            "recent_sessions": [
+                {
+                    "session_id": row['session_id'],
+                    "persona_group": row['persona_group'],
+                    "created_at": row['created_at'].isoformat() if row['created_at'] else None
+                }
+                for row in recent
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@app.get("/results/{session_id}")
+async def get_session_results(session_id: str):
+    """Get results for a specific session."""
+    if not database:
+        raise HTTPException(status_code=503, detail="Database not configured")
+    
+    try:
+        result = await database.fetch_one(
+            query="SELECT * FROM study_results WHERE session_id = :session_id",
+            values={"session_id": session_id}
+        )
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        return {
+            "session_id": result['session_id'],
+            "persona_group": result['persona_group'],
+            "created_at": result['created_at'].isoformat() if result['created_at'] else None,
+            "results": json.loads(result['results_json'])
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@app.get("/results/export/all")
+async def export_all_results():
+    """Export all results as JSON array (for download/analysis)."""
+    if not database:
+        raise HTTPException(status_code=503, detail="Database not configured")
+    
+    try:
+        results = await database.fetch_all(
+            query="SELECT results_json FROM study_results ORDER BY created_at"
+        )
+        
+        return {
+            "count": len(results),
+            "results": [json.loads(row['results_json']) for row in results]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
 @app.get("/session/{session_id}")

@@ -4,7 +4,7 @@ import {
   ArrowRight, ArrowLeft, MessageSquare, User, CheckCircle,
   Star, DollarSign, Zap, Brain, X, Info, RefreshCw,
   AlertCircle, Download, Send, MessageCircle, Target, Sparkles,
-  BookOpen, Heart, ThumbsUp, Settings, HelpCircle
+  BookOpen, Heart, ThumbsUp, Settings, HelpCircle, Database
 } from 'lucide-react';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -12,6 +12,7 @@ import remarkGfm from 'remark-gfm';
 import 'katex/dist/katex.min.css';
 // --- API CONFIGURATION ---
 const API_URL = 'https://cupid-vs-baseline-arena.onrender.com';
+// const API_URL = 'http://localhost:8000';
 const SURVEY_URL = "https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbesl1iMmrT8";
 
 // --- MARKDOWN COMPONENT WITH STYLING ---
@@ -917,34 +918,14 @@ const App: React.FC = () => {
     await fetchNextRound(false, nextPrompt);
   };
 
-  const handleFinalSubmit = async () => {
-    await saveSessionData();
-    // Show download reminder before finishing
-    setShowDownloadReminder(true);
-  };
-
-  const handleDownloadAndFinish = () => {
-    downloadResults();
-    setHasDownloaded(true);
-  };
-
-  const handleFinishStudy = () => {
-    setShowDownloadReminder(false);
-    setFinished(true);
-  };
-
-  const downloadResults = () => {
-    // Get the final model info for each system
-    // For cupid (System A): use the last voted model from history
+  // Build results object (shared between save and download)
+  const buildResultsObject = () => {
     const lastRound = roundHistory[roundHistory.length - 1];
     const cupidFinalModelId = lastRound ?
       (lastRound.cupid_vote === 'left' ? lastRound.cupid_left_id : lastRound.cupid_right_id) : null;
     const baselineFinalModelId = lastRound ?
       (lastRound.baseline_vote === 'left' ? lastRound.baseline_left_id : lastRound.baseline_right_id) : null;
 
-    // Get final model stats - MUST match the voted model, not just any available stats
-    // The stats in arenaState are for the CURRENT round's pair, but we need stats for the voted model
-    // Use the vote to get the correct side's stats
     const cupidFinalStats = lastRound?.cupid_vote === 'left'
       ? arenaState?.cupid_pair?.left_stats
       : arenaState?.cupid_pair?.right_stats;
@@ -952,18 +933,14 @@ const App: React.FC = () => {
       ? arenaState?.baseline_pair?.left_stats
       : arenaState?.baseline_pair?.right_stats;
 
-    // Calculate total costs from arenaState (interaction phase)
-    // cupid_cost and baseline_cost are cumulative totals from backend
-    // routing_cost is the cumulative total for the feedback/routing model (Grok)
     const interactionPhaseCupidCost = arenaState?.cupid_cost || 0;
     const interactionPhaseBaselineCost = arenaState?.baseline_cost || 0;
     const interactionPhaseRoutingCost = arenaState?.routing_cost || 0;
 
-    // Open testing costs
     const openTestCostA = sideBySideRounds.reduce((sum, r) => sum + r.costA, 0);
     const openTestCostB = sideBySideRounds.reduce((sum, r) => sum + r.costB, 0);
 
-    const results = {
+    return {
       session_id: sessionId,
       timestamp: new Date().toISOString(),
       demographics,
@@ -972,7 +949,6 @@ const App: React.FC = () => {
       constraints: assignedConstraints,
       budget: budgetConstraints,
 
-      // Comprehensive final state
       final_state: {
         system_a: {
           label: 'System A (CUPID)',
@@ -1002,16 +978,13 @@ const App: React.FC = () => {
         terminated_early: roundHistory.length < budgetConstraints.maxRounds,
       },
 
-      // Detailed history with costs
       history: roundHistory,
 
-      // Side-by-side testing data
       open_testing: {
         rounds: sideBySideRounds.length,
         data: sideBySideRounds,
       },
 
-      // Evaluation ratings
       evaluation: {
         quality_rating_a: evalRatingA,
         quality_rating_b: evalRatingB,
@@ -1020,6 +993,63 @@ const App: React.FC = () => {
         comment: evalComment
       },
     };
+  };
+
+  // Save results to database
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveMessage, setSaveMessage] = useState('');
+
+  const saveResultsToDatabase = async () => {
+    setSaveStatus('saving');
+    try {
+      const results = buildResultsObject();
+      const response = await fetch(`${API_URL}/save-results`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(results),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.saved) {
+        setSaveStatus('saved');
+        setSaveMessage('Results saved to database successfully!');
+        return true;
+      } else {
+        setSaveStatus('error');
+        setSaveMessage(data.message || 'Failed to save results');
+        return false;
+      }
+    } catch (err) {
+      console.error('Error saving results:', err);
+      setSaveStatus('error');
+      setSaveMessage('Failed to connect to server. Please download results manually.');
+      return false;
+    }
+  };
+
+  const handleFinalSubmit = async () => {
+    await saveSessionData();
+
+    // Try to save to database first
+    await saveResultsToDatabase();
+
+    // Show download reminder (as backup or confirmation)
+    setShowDownloadReminder(true);
+  };
+
+  const handleDownloadAndFinish = () => {
+    downloadResults();
+    setHasDownloaded(true);
+  };
+
+  const handleFinishStudy = () => {
+    setShowDownloadReminder(false);
+    setFinished(true);
+  };
+
+  const downloadResults = () => {
+    const results = buildResultsObject();
 
     const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -2073,34 +2103,73 @@ const App: React.FC = () => {
       return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
           <div className="max-w-lg w-full bg-white shadow-2xl rounded-2xl overflow-hidden">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-orange-500 to-red-500 p-6 text-white text-center">
-              <AlertCircle className="mx-auto mb-3" size={48} />
-              <h1 className="text-2xl font-bold">Final Steps (Required)</h1>
+            {/* Header - changes based on save status */}
+            <div className={`p-6 text-white text-center ${saveStatus === 'saved' ? 'bg-gradient-to-r from-green-500 to-emerald-600' : 'bg-gradient-to-r from-orange-500 to-red-500'}`}>
+              {saveStatus === 'saved' ? (
+                <Database className="mx-auto mb-3" size={48} />
+              ) : saveStatus === 'saving' ? (
+                <RefreshCw className="mx-auto mb-3 animate-spin" size={48} />
+              ) : (
+                <AlertCircle className="mx-auto mb-3" size={48} />
+              )}
+              <h1 className="text-2xl font-bold">
+                {saveStatus === 'saved' ? 'Results Saved to Database!' : saveStatus === 'saving' ? 'Saving Results...' : 'Final Steps (Required)'}
+              </h1>
               <p className="opacity-90 mt-2">
-                <strong>Step 1: Download</strong> your JSON → <strong>Step 2: Upload</strong> it to the survey
+                {saveStatus === 'saved' ? (
+                  <>Your data has been automatically saved. Download a backup copy if you'd like.</>
+                ) : (
+                  <><strong>Step 1: Download</strong> your JSON → <strong>Step 2: Upload</strong> it to the survey</>
+                )}
               </p>
-              <p className="text-sm mt-2 opacity-90">
-                <strong>Important:</strong> Downloading does <u>not</u> submit your participation — you must upload the file.
-              </p>
+              {saveStatus !== 'saved' && (
+                <p className="text-sm mt-2 opacity-90">
+                  <strong>Important:</strong> Downloading does <u>not</u> submit your participation — you must upload the file.
+                </p>
+              )}
             </div>
 
             <div className="p-8">
+              {/* Database Save Status Indicator */}
+              {(saveStatus === 'saving' || saveStatus === 'saved' || saveStatus === 'error') && (
+                <div className={`rounded-xl p-4 mb-5 border-2 ${saveStatus === 'saved' ? 'bg-green-50 border-green-300' :
+                  saveStatus === 'error' ? 'bg-red-50 border-red-300' :
+                    'bg-blue-50 border-blue-300'
+                  }`}>
+                  <div className="flex items-center gap-3">
+                    {saveStatus === 'saved' && <CheckCircle className="text-green-600" size={24} />}
+                    {saveStatus === 'error' && <AlertCircle className="text-red-600" size={24} />}
+                    {saveStatus === 'saving' && <RefreshCw className="text-blue-600 animate-spin" size={24} />}
+                    <div>
+                      <span className={`font-bold ${saveStatus === 'saved' ? 'text-green-800' :
+                        saveStatus === 'error' ? 'text-red-800' :
+                          'text-blue-800'
+                        }`}>
+                        {saveStatus === 'saved' ? '✓ Auto-Saved to Database' :
+                          saveStatus === 'error' ? 'Database Save Failed' :
+                            'Saving to Database...'}
+                      </span>
+                      {saveMessage && <p className="text-sm text-gray-600 mt-1">{saveMessage}</p>}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* STEP 1: Download */}
               <div
-                className={`rounded-xl p-6 mb-5 border-2 ${hasDownloaded ? "bg-green-50 border-green-300" : "bg-yellow-50 border-yellow-400"
+                className={`rounded-xl p-6 mb-5 border-2 ${hasDownloaded ? "bg-green-50 border-green-300" : saveStatus === 'saved' ? "bg-gray-50 border-gray-200" : "bg-yellow-50 border-yellow-400"
                   }`}
               >
                 <div className="flex items-center gap-3 mb-3">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${hasDownloaded ? "bg-green-500" : "bg-yellow-500"
+                    className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${hasDownloaded ? "bg-green-500" : saveStatus === 'saved' ? "bg-gray-400" : "bg-yellow-500"
                       }`}
                   >
                     {hasDownloaded ? <CheckCircle size={24} /> : "1"}
                   </div>
                   <div>
                     <div className="font-bold text-gray-800 text-lg">
-                      Step 1: Download your submission file (JSON)
+                      {saveStatus === 'saved' ? 'Download Backup (Optional)' : 'Step 1: Download your submission file (JSON)'}
                     </div>
                     {hasDownloaded && (
                       <div className="text-green-700 text-sm font-medium">✓ Downloaded</div>
@@ -2109,100 +2178,107 @@ const App: React.FC = () => {
                 </div>
 
                 <p className="text-sm text-gray-700 mb-3">
-                  This JSON file is <strong>what you will upload</strong> to complete the study.
-                  <br />
-                  <strong>Nothing is submitted automatically.</strong>
+                  {saveStatus === 'saved'
+                    ? 'Your results are already saved. Download a local copy for your records.'
+                    : <>This JSON file is <strong>what you will upload</strong> to complete the study.<br /><strong>Nothing is submitted automatically.</strong></>
+                  }
                 </p>
 
                 <button
                   onClick={handleDownloadAndFinish}
                   className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded
                     ? "bg-green-100 text-green-700 hover:bg-green-200"
-                    : "bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 shadow-lg"
+                    : saveStatus === 'saved'
+                      ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      : "bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 shadow-lg"
                     }`}
                 >
                   <Download size={22} /> {hasDownloaded ? "Download Again" : "Download JSON File"}
                 </button>
 
-                <p className="text-xs text-gray-600 mt-3">
-                  You will upload this <strong>.json</strong> file in Step 2.
-                </p>
+                {saveStatus !== 'saved' && (
+                  <p className="text-xs text-gray-600 mt-3">
+                    You will upload this <strong>.json</strong> file in Step 2.
+                  </p>
+                )}
               </div>
 
-              {/* STEP 2: Upload */}
-              <div
-                className={`rounded-xl p-6 mb-4 border-2 ${hasDownloaded ? "bg-blue-50 border-blue-300" : "bg-gray-50 border-gray-200"
-                  }`}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${confirmedUploaded ? "bg-green-600" : hasDownloaded ? "bg-blue-600" : "bg-gray-400"
-                      }`}
-                  >
-                    {confirmedUploaded ? <CheckCircle size={24} /> : "2"}
-                  </div>
-                  <div>
-                    <div className="font-bold text-gray-800 text-lg">
-                      Step 2: Upload the JSON to the survey (required)
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      You are <strong>not done</strong> until you upload the file <strong>and submit</strong> the survey.
-                    </div>
-                  </div>
-                </div>
-
-                <ol className="ml-5 list-decimal text-sm text-gray-700">
-                  <li>Click the button below to open the survey (opens a new tab).</li>
-                  <li>Find the <strong>file upload</strong> question.</li>
-                  <li>Upload the <strong>JSON file</strong> you downloaded in Step 1.</li>
-                  <li><strong>Submit the survey</strong> (this is what completes your participation).</li>
-                </ol>
-
-                <a
-                  href={SURVEY_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setHasOpenedSurvey(true)}
-                  className={`mt-4 w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded
-                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg"
-                    : "bg-gray-200 text-gray-400 pointer-events-none cursor-not-allowed"
+              {/* STEP 2: Upload - Hide if saved to database */}
+              {saveStatus !== 'saved' && (
+                <div
+                  className={`rounded-xl p-6 mb-4 border-2 ${hasDownloaded ? "bg-blue-50 border-blue-300" : "bg-gray-50 border-gray-200"
                     }`}
                 >
-                  <ArrowRight size={22} /> Open Survey & Upload JSON
-                </a>
-
-                {/* Confirmation checkbox */}
-                <label className="mt-4 flex items-start gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    disabled={!hasDownloaded || !hasOpenedSurvey}
-                    checked={confirmedUploaded}
-                    onChange={(e) => setConfirmedUploaded(e.target.checked)}
-                  />
-                  <span>
-                    I uploaded the JSON file in the survey and clicked <strong>Submit</strong>.
-                    <div className="text-xs text-gray-500 mt-1">
-                      (After uploading, return to this tab to finish.)
+                  <div className="flex items-center gap-3 mb-3">
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${confirmedUploaded ? "bg-green-600" : hasDownloaded ? "bg-blue-600" : "bg-gray-400"
+                        }`}
+                    >
+                      {confirmedUploaded ? <CheckCircle size={24} /> : "2"}
                     </div>
-                  </span>
-                </label>
+                    <div>
+                      <div className="font-bold text-gray-800 text-lg">
+                        Step 2: Upload the JSON to the survey (required)
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        You are <strong>not done</strong> until you upload the file <strong>and submit</strong> the survey.
+                      </div>
+                    </div>
+                  </div>
 
-                {!hasDownloaded && (
-                  <p className="text-center text-gray-400 text-sm mt-3">
-                    Please complete Step 1 first to enable upload.
-                  </p>
-                )}
+                  <ol className="ml-5 list-decimal text-sm text-gray-700">
+                    <li>Click the button below to open the survey (opens a new tab).</li>
+                    <li>Find the <strong>file upload</strong> question.</li>
+                    <li>Upload the <strong>JSON file</strong> you downloaded in Step 1.</li>
+                    <li><strong>Submit the survey</strong> (this is what completes your participation).</li>
+                  </ol>
 
-                {hasDownloaded && !hasOpenedSurvey && (
-                  <p className="text-center text-gray-500 text-sm mt-3">
-                    Tip: Click <strong>Open Survey & Upload JSON</strong> first, then come back to confirm.
-                  </p>
-                )}
-              </div>
+                  <a
+                    href={SURVEY_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setHasOpenedSurvey(true)}
+                    className={`mt-4 w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded
+                      ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg"
+                      : "bg-gray-200 text-gray-400 pointer-events-none cursor-not-allowed"
+                      }`}
+                  >
+                    <ArrowRight size={22} /> Open Survey & Upload JSON
+                  </a>
 
-              {/* Strong warning (always visible until confirmed) */}
-              {!confirmedUploaded && (
+                  {/* Confirmation checkbox */}
+                  <label className="mt-4 flex items-start gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      disabled={!hasDownloaded || !hasOpenedSurvey}
+                      checked={confirmedUploaded}
+                      onChange={(e) => setConfirmedUploaded(e.target.checked)}
+                    />
+                    <span>
+                      I uploaded the JSON file in the survey and clicked <strong>Submit</strong>.
+                      <div className="text-xs text-gray-500 mt-1">
+                        (After uploading, return to this tab to finish.)
+                      </div>
+                    </span>
+                  </label>
+
+                  {!hasDownloaded && (
+                    <p className="text-center text-gray-400 text-sm mt-3">
+                      Please complete Step 1 first to enable upload.
+                    </p>
+                  )}
+
+                  {hasDownloaded && !hasOpenedSurvey && (
+                    <p className="text-center text-gray-500 text-sm mt-3">
+                      Tip: Click <strong>Open Survey & Upload JSON</strong> first, then come back to confirm.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Strong warning (always visible until confirmed) - only if NOT saved to database */}
+              {!confirmedUploaded && saveStatus !== 'saved' && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
                   <p className="text-red-700 text-sm flex items-center gap-2">
                     <AlertCircle size={16} />
@@ -2211,19 +2287,19 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              {/* Finish button (the only "continue") */}
+              {/* Finish button - enabled immediately if saved to database */}
               <button
                 onClick={handleFinishStudy}
-                disabled={!hasDownloaded || !confirmedUploaded}
-                className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded && confirmedUploaded
+                disabled={saveStatus !== 'saved' && (!hasDownloaded || !confirmedUploaded)}
+                className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${saveStatus === 'saved' || (hasDownloaded && confirmedUploaded)
                   ? "bg-green-600 text-white hover:bg-green-700"
                   : "bg-gray-200 text-gray-400 cursor-not-allowed"
                   }`}
               >
-                I Uploaded & Submitted — Finish <CheckCircle size={22} />
+                {saveStatus === 'saved' ? 'Continue' : 'I Uploaded & Submitted — Finish'} <CheckCircle size={22} />
               </button>
 
-              {(!hasDownloaded || !confirmedUploaded) && (
+              {saveStatus !== 'saved' && (!hasDownloaded || !confirmedUploaded) && (
                 <p className="text-center text-gray-400 text-sm mt-3">
                   Finish is enabled after you upload the JSON and submit the survey.
                 </p>
@@ -2242,22 +2318,41 @@ const App: React.FC = () => {
           <CheckCircle className="mx-auto text-green-500 mb-6" size={80} />
           <h1 className="text-3xl font-bold mb-2">Thank You!</h1>
           <p className="text-gray-600 mb-6">
-            Your submission is complete. You may close this tab.
+            {saveStatus === 'saved'
+              ? 'Your results have been saved. You may close this tab.'
+              : 'Your submission is complete. You may close this tab.'
+            }
           </p>
 
-          <div className="bg-gray-50 border rounded-xl p-4 text-left">
-            <p className="text-sm text-gray-600">
-              If you need the survey link again:
-            </p>
-            <a
-              href={SURVEY_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 inline-flex items-center justify-center w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition"
-            >
-              <ArrowRight size={18} className="mr-2" /> Open Survey
-            </a>
-          </div>
+          {/* Show different content based on save status */}
+          {saveStatus === 'saved' ? (
+            <div className="bg-green-50 border-2 border-green-200 rounded-xl p-6 text-left">
+              <div className="flex items-center gap-3 mb-2">
+                <Database className="text-green-600" size={24} />
+                <span className="font-bold text-green-800">Results Saved Successfully</span>
+              </div>
+              <p className="text-sm text-gray-600">
+                Your study data has been automatically saved to our database. No further action required!
+              </p>
+              {hasDownloaded && (
+                <p className="text-xs text-gray-500 mt-2">A backup copy was also downloaded to your device.</p>
+              )}
+            </div>
+          ) : (
+            <div className="bg-gray-50 border rounded-xl p-4 text-left">
+              <p className="text-sm text-gray-600">
+                If you need the survey link again:
+              </p>
+              <a
+                href={SURVEY_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center justify-center w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition"
+              >
+                <ArrowRight size={18} className="mr-2" /> Open Survey
+              </a>
+            </div>
+          )}
 
           <p className="text-sm text-gray-400 mt-6">Session: {sessionId}</p>
         </div>

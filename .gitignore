@@ -16,6 +16,8 @@ backend/venv/*
 backend/__pycache__/
 *.pyc
 
+backend/session_data/*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
