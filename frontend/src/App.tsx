@@ -847,6 +847,7 @@ const App: React.FC = () => {
 
   const startSession = async () => {
     if (!prompt.trim()) { setError("Please enter a query to start."); return; }
+    if (!initialPreference.trim()) { setError("Please describe what kind of LLM you're looking for."); return; }
     setError(null);
     await fetchNextRound(true, prompt);
     setInit(false);
@@ -949,7 +950,7 @@ const App: React.FC = () => {
       expert_subject: selectedExpertSubject,
       constraints: assignedConstraints,
       budget: budgetConstraints,
-      initial_preference: initialPreference || null,
+      initial_preference: initialPreference,
 
       final_state: {
         system_a: {
@@ -1733,10 +1734,10 @@ const App: React.FC = () => {
             <div className="mb-4 bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-lg border border-indigo-200 text-left">
               <div className="flex items-center gap-2 mb-2">
                 <Sparkles size={18} className="text-indigo-600" />
-                <label className="text-sm font-bold text-indigo-900">What kind of LLM would you like? (optional)</label>
+                <label className="text-sm font-bold text-indigo-900">What kind of LLM would you like? <span className="text-red-500">*</span></label>
               </div>
               <p className="text-xs text-indigo-700 mb-3">
-                Help the system understand your preferences from the start. For example: "a cheap model", "a friendly assistant", "technology-focused", "fast responses", etc.
+                Tell the system your preferences to help find the best model for you. For example: "a cheap model", "a friendly assistant", "technology-focused", "fast responses", etc.
               </p>
               <input
                 type="text"
@@ -1747,7 +1748,7 @@ const App: React.FC = () => {
               />
             </div>
 
-            <button onClick={startSession} disabled={!prompt.trim() || loading} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-2">{loading ? (<><RefreshCw size={16} className="animate-spin" />Starting...</>) : 'Start Comparing'}</button>
+            <button onClick={startSession} disabled={!prompt.trim() || !initialPreference.trim() || loading} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-2">{loading ? (<><RefreshCw size={16} className="animate-spin" />Starting...</>) : 'Start Comparing'}</button>
           </div>
         </div>
       );
