@@ -874,10 +874,17 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup():
     """Initialize database connection and create tables."""
+    print("=" * 60)
+    print("[startup] LLM Model Selection User Study API starting...")
+    print(f"[startup] DATABASE_URL configured: {bool(DATABASE_URL)}")
+    print(f"[startup] DATABASE_AVAILABLE: {DATABASE_AVAILABLE}")
+    print(f"[startup] database object: {database is not None}")
+    print("=" * 60)
+    
     if database:
         try:
             await database.connect()
-            print("✅ Database connected successfully")
+            print("[startup] ✅ Database connected successfully")
 
             # Create results table if it doesn't exist
             await database.execute("""
@@ -901,11 +908,19 @@ async def startup():
                 CREATE INDEX IF NOT EXISTS idx_created_at ON study_results(created_at)
             """)
 
-            print("✅ Database table ready")
+            # Test the connection by counting rows
+            result = await database.fetch_one("SELECT COUNT(*) as count FROM study_results")
+            print(f"[startup] ✅ Database table ready - {result['count']} existing records")
         except Exception as e:
-            print(f"⚠️ Database connection failed: {e}")
+            print(f"[startup] ⚠️ Database connection failed: {e}")
+            import traceback
+            traceback.print_exc()
     else:
-        print("ℹ️ Database not configured - results will not be saved automatically")
+        print("[startup] ℹ️ Database not configured - results will not be saved automatically")
+        if not DATABASE_URL:
+            print("[startup]    → DATABASE_URL environment variable is not set")
+        if not DATABASE_AVAILABLE:
+            print("[startup]    → databases package is not installed")
 
 
 @app.on_event("shutdown")
@@ -1028,13 +1043,20 @@ async def root():
 @app.get("/health")
 async def health_check():
     db_status = "not_configured"
+    db_record_count = None
+    db_error = None
+    
     if database:
         try:
             # Test database connection
             await database.execute("SELECT 1")
             db_status = "connected"
-        except Exception:
+            # Get record count
+            result = await database.fetch_one("SELECT COUNT(*) as count FROM study_results")
+            db_record_count = result['count'] if result else 0
+        except Exception as e:
             db_status = "error"
+            db_error = str(e)
 
     return {
         "status": "healthy",
@@ -1042,6 +1064,9 @@ async def health_check():
         "num_models": num_models,
         "openrouter_configured": bool(OPENROUTER_API_KEY),
         "database_status": db_status,
+        "database_record_count": db_record_count,
+        "database_error": db_error,
+        "active_sessions": len(sessions),
     }
 
 
@@ -1131,7 +1156,14 @@ async def save_results(request: SaveResultsRequest):
     Save study results to database.
     This endpoint is called when the user completes the study.
     """
+    print(f"[save-results] Received save request for session: {request.session_id}")
+    print(f"[save-results] Persona group: {request.persona_group}")
+    print(f"[save-results] Initial preference: {request.initial_preference}")
+    print(f"[save-results] History length: {len(request.history) if request.history else 0}")
+    print(f"[save-results] Database configured: {database is not None}")
+    
     if not database:
+        print("[save-results] ❌ Database not configured")
         return {
             "success": False,
             "message": "Database not configured. Please download results manually.",
@@ -1141,8 +1173,10 @@ async def save_results(request: SaveResultsRequest):
     try:
         # Convert request to dict for JSON storage
         results_dict = request.model_dump()
+        print(f"[save-results] Converted to dict, keys: {list(results_dict.keys())}")
 
         # Use upsert (INSERT ... ON CONFLICT) to avoid race conditions
+        print(f"[save-results] Executing database insert...")
         await database.execute(
             query="""
             INSERT INTO study_results (session_id, persona_group, results_json)
@@ -1158,6 +1192,7 @@ async def save_results(request: SaveResultsRequest):
                 "results_json": json.dumps(results_dict),
             },
         )
+        print(f"[save-results] ✅ Successfully saved session {request.session_id}")
         return {
             "success": True,
             "message": "Results saved successfully",
@@ -1166,7 +1201,9 @@ async def save_results(request: SaveResultsRequest):
         }
 
     except Exception as e:
-        print(f"Error saving results: {e}")
+        print(f"[save-results] ❌ Error saving results: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             "success": False,
             "message": f"Failed to save results: {str(e)}",
@@ -1300,6 +1337,17 @@ async def interact(request: InteractRequest):
     """
     # Get or create session
     session_id, state = get_or_create_session(request.session_id)
+    
+    is_new_session = request.session_id is None
+    if is_new_session:
+        print(f"[interact] 🆕 New session created: {session_id}")
+        print(f"[interact]    Persona group: {request.persona_group}")
+        print(f"[interact]    Initial preference/feedback: {request.feedback_text}")
+        print(f"[interact]    Budget: {request.budget_rounds} rounds, ${request.budget_cost}")
+    else:
+        print(f"[interact] 🔄 Round {state.round_count + 1} for session: {session_id}")
+        if request.feedback_text:
+            print(f"[interact]    Feedback: {request.feedback_text}")
 
     async with state.lock:
         # On first round, save budget and persona

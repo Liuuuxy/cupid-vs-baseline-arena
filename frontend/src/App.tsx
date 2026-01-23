@@ -1004,27 +1004,40 @@ const App: React.FC = () => {
 
   const saveResultsToDatabase = async () => {
     setSaveStatus('saving');
+    console.log('[saveResultsToDatabase] Starting save...');
     try {
       const results = buildResultsObject();
+      console.log('[saveResultsToDatabase] Built results object:', {
+        session_id: results.session_id,
+        persona_group: results.persona_group,
+        initial_preference: results.initial_preference,
+        history_length: results.history?.length,
+        has_evaluation: !!results.evaluation
+      });
+      
       const response = await fetch(`${API_URL}/save-results`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(results),
       });
 
+      console.log('[saveResultsToDatabase] Response status:', response.status);
       const data = await response.json();
+      console.log('[saveResultsToDatabase] Response data:', data);
 
       if (data.success && data.saved) {
         setSaveStatus('saved');
         setSaveMessage('Results saved to database successfully!');
+        console.log('[saveResultsToDatabase] ✅ Save successful');
         return true;
       } else {
         setSaveStatus('error');
         setSaveMessage(data.message || 'Failed to save results');
+        console.error('[saveResultsToDatabase] ❌ Save failed:', data.message);
         return false;
       }
     } catch (err) {
-      console.error('Error saving results:', err);
+      console.error('[saveResultsToDatabase] ❌ Error:', err);
       setSaveStatus('error');
       setSaveMessage('Failed to connect to server. Please download results manually.');
       return false;
@@ -1909,7 +1922,13 @@ const App: React.FC = () => {
                   {canEndEarly && !isLastRound && (
                     <button
                       onClick={handleSatisfied}
-                      className="bg-green-100 text-green-700 px-4 py-2 rounded-lg font-medium hover:bg-green-200 transition text-sm"
+                      disabled={!cupidVote || !baselineVote}
+                      className={`px-4 py-2 rounded-lg font-medium transition text-sm ${
+                        cupidVote && baselineVote 
+                          ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      }`}
+                      title={!cupidVote || !baselineVote ? 'Please select your preferred response from both systems first' : ''}
                     >
                       ✓ I'm Satisfied — End Drafting
                     </button>
