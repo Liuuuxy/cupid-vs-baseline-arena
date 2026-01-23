@@ -428,6 +428,7 @@ const App: React.FC = () => {
   const [baselineVote, setBaselineVote] = useState<'left' | 'right' | null>(null);
   const [feedbackA, setFeedbackA] = useState<string>('');
   const [feedbackB, setFeedbackB] = useState<string>('');
+  const [initialPreference, setInitialPreference] = useState<string>('');
   const [roundHistory, setRoundHistory] = useState<RoundHistory[]>([]);
 
   const [showModelInfo, setShowModelInfo] = useState<{ system: 'cupid' | 'baseline', side: 'left' | 'right' } | null>(null);
@@ -513,7 +514,7 @@ const App: React.FC = () => {
         session_id: isFirst ? null : sessionId,
         prompt: promptToUse,
         previous_vote: null,
-        feedback_text: feedbackA || '',
+        feedback_text: isFirst ? (initialPreference || '') : (feedbackA || ''),
       };
 
       if (!isFirst && cupidVote) payload.cupid_vote = cupidVote;
@@ -603,7 +604,7 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [prompt, sessionId, cupidVote, baselineVote, feedbackA, budgetConstraints, personaGroup, selectedExpertSubject, assignedConstraints, demographics, arenaState]);
+  }, [prompt, sessionId, cupidVote, baselineVote, feedbackA, initialPreference, budgetConstraints, personaGroup, selectedExpertSubject, assignedConstraints, demographics, arenaState]);
 
   const sendOpenTestMessage = async () => {
     if (!openTestInput.trim() || openTestLoading) return;
@@ -948,6 +949,7 @@ const App: React.FC = () => {
       expert_subject: selectedExpertSubject,
       constraints: assignedConstraints,
       budget: budgetConstraints,
+      initial_preference: initialPreference || null,
 
       final_state: {
         system_a: {
@@ -1726,6 +1728,25 @@ const App: React.FC = () => {
                 <span><strong>Privacy:</strong> Do not enter personal information. Prompts and responses are collected for research.</span>
               </p>
             </div>
+            
+            {/* Initial Preference Field */}
+            <div className="mb-4 bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-lg border border-indigo-200 text-left">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles size={18} className="text-indigo-600" />
+                <label className="text-sm font-bold text-indigo-900">What kind of LLM would you like? (optional)</label>
+              </div>
+              <p className="text-xs text-indigo-700 mb-3">
+                Help the system understand your preferences from the start. For example: "a cheap model", "a friendly assistant", "technology-focused", "fast responses", etc.
+              </p>
+              <input
+                type="text"
+                className="w-full border border-indigo-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                placeholder='e.g., "I want a cheap model", "I prefer detailed explanations", "Something fast and concise"'
+                value={initialPreference}
+                onChange={(e) => setInitialPreference(e.target.value)}
+              />
+            </div>
+
             <button onClick={startSession} disabled={!prompt.trim() || loading} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-2">{loading ? (<><RefreshCw size={16} className="animate-spin" />Starting...</>) : 'Start Comparing'}</button>
           </div>
         </div>
@@ -1736,7 +1757,8 @@ const App: React.FC = () => {
     const systemBCost = arenaState?.baseline_cost || 0;
     const totalCost = systemACost + systemBCost;
     const isLastRound = arenaState && (arenaState.round >= budgetConstraints.maxRounds || totalCost >= budgetConstraints.maxCost);
-    const canEndEarly = arenaState && arenaState.round >= 1;
+    const halfwayPoint = Math.ceil(budgetConstraints.maxRounds / 2);
+    const canEndEarly = arenaState && arenaState.round >= halfwayPoint;
 
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
