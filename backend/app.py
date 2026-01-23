@@ -10,6 +10,7 @@ import json
 from typing import Dict, Any, List, Optional, Tuple
 from collections import Counter, deque
 from datetime import datetime
+import asyncio
 
 import numpy as np
 import pandas as pd
@@ -22,10 +23,13 @@ from pydantic import BaseModel, Field
 # Database imports
 try:
     from databases import Database
+
     DATABASE_AVAILABLE = True
 except ImportError:
     DATABASE_AVAILABLE = False
-    print("Warning: databases package not available. Results will not be saved to database.")
+    print(
+        "Warning: databases package not available. Results will not be saved to database."
+    )
 
 # Conditional imports for CUPID GP model
 try:
@@ -163,7 +167,9 @@ def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
         input_price, output_price = _get_model_pricing(model_id)
         mock_prompt_tokens = int(len(prompt.split()) * 1.3) + 30
         mock_completion_tokens = 150
-        mock_cost = (mock_prompt_tokens * input_price / 1_000_000) + (mock_completion_tokens * output_price / 1_000_000)
+        mock_cost = (mock_prompt_tokens * input_price / 1_000_000) + (
+            mock_completion_tokens * output_price / 1_000_000
+        )
         return {
             "text": f"[Mock response from {_model_display_name_from_id(model_id)}] This is a simulated response for testing. Your query was about: {prompt[:100]}...",
             "cost": mock_cost,
@@ -181,7 +187,7 @@ def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
         ],
         "usage": {
             "include": True  # Enable usage accounting to get cost data
-        }
+        },
     }
 
     try:
@@ -206,11 +212,11 @@ def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
         cost = float(usage.get("cost", 0) or 0)
 
         return {
-            "text": text, 
-            "cost": cost, 
+            "text": text,
+            "cost": cost,
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
-            "raw": data
+            "raw": data,
         }
     except Exception as e:
         return {
@@ -496,21 +502,25 @@ class CUPIDState:
         # Cost tracking
         self.total_cost = 0.0
         self.round_count = 0
-        
+
         # History for tracking
         self.history: List[Dict] = []
-    
+
     @property
     def current_left_id(self) -> Optional[int]:
         """Get the actual model ID for current left arm."""
-        if self.current_left_idx is not None and 0 <= self.current_left_idx < len(self.arms):
+        if self.current_left_idx is not None and 0 <= self.current_left_idx < len(
+            self.arms
+        ):
             return self.arms[self.current_left_idx]
         return None
-    
+
     @property
     def current_right_id(self) -> Optional[int]:
         """Get the actual model ID for current right arm."""
-        if self.current_right_idx is not None and 0 <= self.current_right_idx < len(self.arms):
+        if self.current_right_idx is not None and 0 <= self.current_right_idx < len(
+            self.arms
+        ):
             return self.arms[self.current_right_idx]
         return None
 
@@ -590,6 +600,16 @@ class CUPIDState:
             self.round_count += 1
             return
 
+        self.history.append(
+            {
+                "left": self.current_left_id,
+                "right": self.current_right_id,
+                "winner_id": self.current_left_id
+                if winner_is_left
+                else self.current_right_id,
+            }
+        )
+
         # Belief update
         log_liks = []
         for ctx in self.contexts:
@@ -665,21 +685,25 @@ class BaselineState:
         # Cost tracking
         self.total_cost = 0.0
         self.round_count = 0
-        
+
         # History for tracking
         self.history: List[Dict] = []
-    
+
     @property
     def current_left_id(self) -> Optional[int]:
         """Get the actual model ID for current left arm."""
-        if self.current_left_idx is not None and 0 <= self.current_left_idx < len(self.arms):
+        if self.current_left_idx is not None and 0 <= self.current_left_idx < len(
+            self.arms
+        ):
             return self.arms[self.current_left_idx]
         return None
-    
+
     @property
     def current_right_id(self) -> Optional[int]:
         """Get the actual model ID for current right arm."""
-        if self.current_right_idx is not None and 0 <= self.current_right_idx < len(self.arms):
+        if self.current_right_idx is not None and 0 <= self.current_right_idx < len(
+            self.arms
+        ):
             return self.arms[self.current_right_idx]
         return None
 
@@ -733,6 +757,7 @@ class SessionState:
     """Combined state for a user study session."""
 
     def __init__(self):
+        self.lock = asyncio.Lock()
         arms = MODEL_IDS.copy()
         contexts = MODEL_IDS.copy()
 
@@ -853,7 +878,7 @@ async def startup():
         try:
             await database.connect()
             print("✅ Database connected successfully")
-            
+
             # Create results table if it doesn't exist
             await database.execute("""
                 CREATE TABLE IF NOT EXISTS study_results (
@@ -864,7 +889,7 @@ async def startup():
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            
+
             # Create indexes separately
             await database.execute("""
                 CREATE INDEX IF NOT EXISTS idx_session_id ON study_results(session_id)
@@ -875,7 +900,7 @@ async def startup():
             await database.execute("""
                 CREATE INDEX IF NOT EXISTS idx_created_at ON study_results(created_at)
             """)
-            
+
             print("✅ Database table ready")
         except Exception as e:
             print(f"⚠️ Database connection failed: {e}")
@@ -911,9 +936,15 @@ class InteractRequest(BaseModel):
     budget_cost: Optional[float] = Field(None, description="Maximum cost budget")
     budget_rounds: Optional[int] = Field(None, description="Maximum number of rounds")
     persona_id: Optional[str] = Field(None, description="Assigned persona ID")
-    persona_group: Optional[str] = Field(None, description="Persona group: 'traditional', 'expert', or 'preference'")
-    expert_subject: Optional[str] = Field(None, description="Expert subject for expert group")
-    constraints: Optional[List[Dict[str, Any]]] = Field(None, description="Hard constraints for traditional group")
+    persona_group: Optional[str] = Field(
+        None, description="Persona group: 'traditional', 'expert', or 'preference'"
+    )
+    expert_subject: Optional[str] = Field(
+        None, description="Expert subject for expert group"
+    )
+    constraints: Optional[List[Dict[str, Any]]] = Field(
+        None, description="Hard constraints for traditional group"
+    )
     demographics: Optional[Dict[str, Any]] = Field(
         None, description="User demographics"
     )
@@ -1004,7 +1035,7 @@ async def health_check():
             db_status = "connected"
         except Exception:
             db_status = "error"
-    
+
     return {
         "status": "healthy",
         "botorch_available": BOTORCH_AVAILABLE,
@@ -1035,7 +1066,7 @@ async def list_models():
 async def get_model_pool_stats():
     """Get model pool statistics for constraint sampling.
     Returns only the attributes shown in model cards for constraint generation."""
-    
+
     def safe_int(val):
         """Safely convert value to int, handling comma-formatted numbers."""
         if pd.isna(val) or val is None:
@@ -1047,7 +1078,7 @@ async def get_model_pool_stats():
             return int(str(val).replace(",", ""))
         except (ValueError, TypeError):
             return None
-    
+
     def safe_float(val):
         """Safely convert value to float."""
         if pd.isna(val) or val is None:
@@ -1058,25 +1089,28 @@ async def get_model_pool_stats():
             return float(str(val).replace(",", ""))
         except (ValueError, TypeError):
             return None
-    
+
     stats = []
     for _, row in MODEL_POOL.iterrows():
-        stats.append({
-            "id": int(row["id"]),
-            "intelligence": safe_int(row.get("intelligence")),
-            "speed": safe_int(row.get("speed")),
-            "reasoning": safe_int(row.get("reasoning")),
-            "input_price": safe_float(row.get("input-price")),
-            "output_price": safe_float(row.get("output-price")),
-            "context_window": safe_int(row.get("window-context")),
-            "max_output": safe_int(row.get("max-output")),
-        })
+        stats.append(
+            {
+                "id": int(row["id"]),
+                "intelligence": safe_int(row.get("intelligence")),
+                "speed": safe_int(row.get("speed")),
+                "reasoning": safe_int(row.get("reasoning")),
+                "input_price": safe_float(row.get("input-price")),
+                "output_price": safe_float(row.get("output-price")),
+                "context_window": safe_int(row.get("window-context")),
+                "max_output": safe_int(row.get("max-output")),
+            }
+        )
     return {"models": stats, "count": len(stats)}
 
 
 # ================== Save Results Endpoint ==================
 class SaveResultsRequest(BaseModel):
     """Request model for saving study results."""
+
     session_id: str
     timestamp: str
     demographics: Optional[Dict[str, Any]] = None
@@ -1100,13 +1134,13 @@ async def save_results(request: SaveResultsRequest):
         return {
             "success": False,
             "message": "Database not configured. Please download results manually.",
-            "saved": False
+            "saved": False,
         }
-    
+
     try:
         # Convert request to dict for JSON storage
         results_dict = request.model_dump()
-        
+
         # Use upsert (INSERT ... ON CONFLICT) to avoid race conditions
         await database.execute(
             query="""
@@ -1120,22 +1154,22 @@ async def save_results(request: SaveResultsRequest):
             values={
                 "session_id": request.session_id,
                 "persona_group": request.persona_group,
-                "results_json": json.dumps(results_dict)
-            }
+                "results_json": json.dumps(results_dict),
+            },
         )
         return {
             "success": True,
             "message": "Results saved successfully",
             "saved": True,
-            "session_id": request.session_id
+            "session_id": request.session_id,
         }
-    
+
     except Exception as e:
         print(f"Error saving results: {e}")
         return {
             "success": False,
             "message": f"Failed to save results: {str(e)}",
-            "saved": False
+            "saved": False,
         }
 
 
@@ -1147,7 +1181,7 @@ async def get_all_results():
     """
     if not database:
         raise HTTPException(status_code=503, detail="Database not configured")
-    
+
     try:
         # Get count by persona group
         counts = await database.fetch_all(
@@ -1157,7 +1191,7 @@ async def get_all_results():
             GROUP BY persona_group
             """
         )
-        
+
         # Get recent sessions
         recent = await database.fetch_all(
             query="""
@@ -1167,20 +1201,22 @@ async def get_all_results():
             LIMIT 50
             """
         )
-        
-        total = sum(row['count'] for row in counts)
-        
+
+        total = sum(row["count"] for row in counts)
+
         return {
             "total_sessions": total,
-            "by_group": {row['persona_group']: row['count'] for row in counts},
+            "by_group": {row["persona_group"]: row["count"] for row in counts},
             "recent_sessions": [
                 {
-                    "session_id": row['session_id'],
-                    "persona_group": row['persona_group'],
-                    "created_at": row['created_at'].isoformat() if row['created_at'] else None
+                    "session_id": row["session_id"],
+                    "persona_group": row["persona_group"],
+                    "created_at": row["created_at"].isoformat()
+                    if row["created_at"]
+                    else None,
                 }
                 for row in recent
-            ]
+            ],
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -1191,21 +1227,23 @@ async def get_session_results(session_id: str):
     """Get results for a specific session."""
     if not database:
         raise HTTPException(status_code=503, detail="Database not configured")
-    
+
     try:
         result = await database.fetch_one(
             query="SELECT * FROM study_results WHERE session_id = :session_id",
-            values={"session_id": session_id}
+            values={"session_id": session_id},
         )
-        
+
         if not result:
             raise HTTPException(status_code=404, detail="Session not found")
-        
+
         return {
-            "session_id": result['session_id'],
-            "persona_group": result['persona_group'],
-            "created_at": result['created_at'].isoformat() if result['created_at'] else None,
-            "results": json.loads(result['results_json'])
+            "session_id": result["session_id"],
+            "persona_group": result["persona_group"],
+            "created_at": result["created_at"].isoformat()
+            if result["created_at"]
+            else None,
+            "results": json.loads(result["results_json"]),
         }
     except HTTPException:
         raise
@@ -1218,15 +1256,15 @@ async def export_all_results():
     """Export all results as JSON array (for download/analysis)."""
     if not database:
         raise HTTPException(status_code=503, detail="Database not configured")
-    
+
     try:
         results = await database.fetch_all(
             query="SELECT results_json FROM study_results ORDER BY created_at"
         )
-        
+
         return {
             "count": len(results),
-            "results": [json.loads(row['results_json']) for row in results]
+            "results": [json.loads(row["results_json"]) for row in results],
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -1262,136 +1300,153 @@ async def interact(request: InteractRequest):
     # Get or create session
     session_id, state = get_or_create_session(request.session_id)
 
-    # On first round, save budget and persona
-    if request.budget_cost is not None:
-        state.budget_cost = request.budget_cost
-    if request.budget_rounds is not None:
-        state.budget_rounds = request.budget_rounds
-    if request.persona_id is not None:
-        state.persona_id = request.persona_id
-    if request.demographics is not None:
-        state.demographics = request.demographics
+    async with state.lock:
+        # On first round, save budget and persona
+        if request.budget_cost is not None:
+            state.budget_cost = request.budget_cost
+        if request.budget_rounds is not None:
+            state.budget_rounds = request.budget_rounds
+        if request.persona_id is not None:
+            state.persona_id = request.persona_id
+        if request.demographics is not None:
+            state.demographics = request.demographics
 
-    # Process votes - support both old format (previous_vote) and new format (cupid_vote/baseline_vote)
+        # Process votes - support both old format (previous_vote) and new format (cupid_vote/baseline_vote)
 
-    # Handle CUPID vote
-    cupid_winner_is_left = None
-    if request.cupid_vote:
-        cupid_winner_is_left = request.cupid_vote.lower() == "left"
-    elif request.previous_vote and "cupid" in request.previous_vote.lower():
-        cupid_winner_is_left = "left" in request.previous_vote.lower()
+        # Handle CUPID vote
+        cupid_winner_is_left = None
+        if request.cupid_vote:
+            cupid_winner_is_left = request.cupid_vote.lower() == "left"
+        elif request.previous_vote and "cupid" in request.previous_vote.lower():
+            cupid_winner_is_left = "left" in request.previous_vote.lower()
 
-    if cupid_winner_is_left is not None:
-        # Track the winning model as the final converged model
-        if state.cupid.current_left_id is not None and state.cupid.current_right_id is not None:
-            state.final_cupid_model_id = state.cupid.current_left_id if cupid_winner_is_left else state.cupid.current_right_id
-        state.cupid.update_with_vote(cupid_winner_is_left)
+        if cupid_winner_is_left is not None:
+            # Track the winning model as the final converged model
+            if (
+                state.cupid.current_left_id is not None
+                and state.cupid.current_right_id is not None
+            ):
+                state.final_cupid_model_id = (
+                    state.cupid.current_left_id
+                    if cupid_winner_is_left
+                    else state.cupid.current_right_id
+                )
+            state.cupid.update_with_vote(cupid_winner_is_left)
 
-    # Handle Baseline vote
-    baseline_winner_is_left = None
-    if request.baseline_vote:
-        baseline_winner_is_left = request.baseline_vote.lower() == "left"
-    elif request.previous_vote and "baseline" in request.previous_vote.lower():
-        baseline_winner_is_left = "left" in request.previous_vote.lower()
+        # Handle Baseline vote
+        baseline_winner_is_left = None
+        if request.baseline_vote:
+            baseline_winner_is_left = request.baseline_vote.lower() == "left"
+        elif request.previous_vote and "baseline" in request.previous_vote.lower():
+            baseline_winner_is_left = "left" in request.previous_vote.lower()
 
-    if baseline_winner_is_left is not None:
-        # Track the winning model as the final converged model
-        if state.baseline.current_left_id is not None and state.baseline.current_right_id is not None:
-            state.final_baseline_model_id = state.baseline.current_left_id if baseline_winner_is_left else state.baseline.current_right_id
-        state.baseline.update_with_vote(baseline_winner_is_left)
+        if baseline_winner_is_left is not None:
+            # Track the winning model as the final converged model
+            if (
+                state.baseline.current_left_id is not None
+                and state.baseline.current_right_id is not None
+            ):
+                state.final_baseline_model_id = (
+                    state.baseline.current_left_id
+                    if baseline_winner_is_left
+                    else state.baseline.current_right_id
+                )
+            state.baseline.update_with_vote(baseline_winner_is_left)
 
-    # Select new pairs
-    cupid_left_id, cupid_right_id = state.cupid.select_pair(request.feedback_text or "")
-    baseline_left_id, baseline_right_id = state.baseline.select_pair()
+        # Select new pairs
+        cupid_left_id, cupid_right_id = state.cupid.select_pair(
+            request.feedback_text or ""
+        )
+        baseline_left_id, baseline_right_id = state.baseline.select_pair()
 
-    # Call OpenRouter for all 4 models
-    prompt = request.prompt
+        # Call OpenRouter for all 4 models
+        prompt = request.prompt
 
-    # CUPID responses
-    cupid_left_result = call_openrouter(prompt, cupid_left_id)
-    cupid_right_result = call_openrouter(prompt, cupid_right_id)
+        # CUPID responses
+        cupid_left_result = call_openrouter(prompt, cupid_left_id)
+        cupid_right_result = call_openrouter(prompt, cupid_right_id)
 
-    # Baseline responses
-    baseline_left_result = call_openrouter(prompt, baseline_left_id)
-    baseline_right_result = call_openrouter(prompt, baseline_right_id)
+        # Baseline responses
+        baseline_left_result = call_openrouter(prompt, baseline_left_id)
+        baseline_right_result = call_openrouter(prompt, baseline_right_id)
 
-    # Update costs
-    round_cost = (
-        cupid_left_result["cost"]
-        + cupid_right_result["cost"]
-        + baseline_left_result["cost"]
-        + baseline_right_result["cost"]
-    )
-    state.cupid.total_cost += cupid_left_result["cost"] + cupid_right_result["cost"]
-    state.baseline.total_cost += (
-        baseline_left_result["cost"] + baseline_right_result["cost"]
-    )
+        # Update costs
+        round_cost = (
+            cupid_left_result["cost"]
+            + cupid_right_result["cost"]
+            + baseline_left_result["cost"]
+            + baseline_right_result["cost"]
+        )
+        state.cupid.total_cost += cupid_left_result["cost"] + cupid_right_result["cost"]
+        state.baseline.total_cost += (
+            baseline_left_result["cost"] + baseline_right_result["cost"]
+        )
 
-    # Increment round
-    state.round_count += 1
+        # Increment round
+        state.round_count += 1
 
-    # Calculate total cost across both systems
-    total_cost = state.cupid.total_cost + state.baseline.total_cost
+        # Calculate total cost across both systems
+        total_cost = state.cupid.total_cost + state.baseline.total_cost
 
-    # Track history for this round
-    state.history.append(
-        {
-            "round": state.round_count,
-            "prompt": prompt,
-            "cupid_left_id": cupid_left_id,
-            "cupid_right_id": cupid_right_id,
-            "baseline_left_id": baseline_left_id,
-            "baseline_right_id": baseline_right_id,
-            "feedback": request.feedback_text,
-            "cupid_vote": request.cupid_vote,
-            "baseline_vote": request.baseline_vote,
-            "round_cost": round_cost,
-            "total_cost": total_cost,
-        }
-    )
+        # Track history for this round
+        state.history.append(
+            {
+                "round": state.round_count,
+                "prompt": prompt,
+                "cupid_left_id": cupid_left_id,
+                "cupid_right_id": cupid_right_id,
+                "baseline_left_id": baseline_left_id,
+                "baseline_right_id": baseline_right_id,
+                "feedback": request.feedback_text,
+                "cupid_vote": request.cupid_vote,
+                "baseline_vote": request.baseline_vote,
+                "round_cost": round_cost,
+                "total_cost": total_cost,
+            }
+        )
 
-    # Get model stats (without names)
-    c_left_stats = get_model_stats(cupid_left_id)
-    c_right_stats = get_model_stats(cupid_right_id)
-    b_left_stats = get_model_stats(baseline_left_id)
-    b_right_stats = get_model_stats(baseline_right_id)
+        # Get model stats (without names)
+        c_left_stats = get_model_stats(cupid_left_id)
+        c_right_stats = get_model_stats(cupid_right_id)
+        b_left_stats = get_model_stats(baseline_left_id)
+        b_right_stats = get_model_stats(baseline_right_id)
 
-    return InteractResponse(
-        session_id=session_id,
-        round=state.round_count,
-        total_cost=total_cost,
-        cupid_cost=state.cupid.total_cost,
-        baseline_cost=state.baseline.total_cost,
-        routing_cost=getattr(state, 'routing_cost', 0.0),
-        cLeft=ModelResponse(
-            model_id=cupid_left_id,
-            model_name=_model_display_name_from_id(cupid_left_id),
-            text=cupid_left_result["text"],
-            cost=cupid_left_result["cost"],
-        ),
-        cRight=ModelResponse(
-            model_id=cupid_right_id,
-            model_name=_model_display_name_from_id(cupid_right_id),
-            text=cupid_right_result["text"],
-            cost=cupid_right_result["cost"],
-        ),
-        bLeft=ModelResponse(
-            model_id=baseline_left_id,
-            model_name=_model_display_name_from_id(baseline_left_id),
-            text=baseline_left_result["text"],
-            cost=baseline_left_result["cost"],
-        ),
-        bRight=ModelResponse(
-            model_id=baseline_right_id,
-            model_name=_model_display_name_from_id(baseline_right_id),
-            text=baseline_right_result["text"],
-            cost=baseline_right_result["cost"],
-        ),
-        cLeftStats=c_left_stats,
-        cRightStats=c_right_stats,
-        bLeftStats=b_left_stats,
-        bRightStats=b_right_stats,
-    )
+        return InteractResponse(
+            session_id=session_id,
+            round=state.round_count,
+            total_cost=total_cost,
+            cupid_cost=state.cupid.total_cost,
+            baseline_cost=state.baseline.total_cost,
+            routing_cost=getattr(state, "routing_cost", 0.0),
+            cLeft=ModelResponse(
+                model_id=cupid_left_id,
+                model_name=_model_display_name_from_id(cupid_left_id),
+                text=cupid_left_result["text"],
+                cost=cupid_left_result["cost"],
+            ),
+            cRight=ModelResponse(
+                model_id=cupid_right_id,
+                model_name=_model_display_name_from_id(cupid_right_id),
+                text=cupid_right_result["text"],
+                cost=cupid_right_result["cost"],
+            ),
+            bLeft=ModelResponse(
+                model_id=baseline_left_id,
+                model_name=_model_display_name_from_id(baseline_left_id),
+                text=baseline_left_result["text"],
+                cost=baseline_left_result["cost"],
+            ),
+            bRight=ModelResponse(
+                model_id=baseline_right_id,
+                model_name=_model_display_name_from_id(baseline_right_id),
+                text=baseline_right_result["text"],
+                cost=baseline_right_result["cost"],
+            ),
+            cLeftStats=c_left_stats,
+            cRightStats=c_right_stats,
+            bLeftStats=b_left_stats,
+            bRightStats=b_right_stats,
+        )
 
 
 @app.delete("/session/{session_id}")
@@ -1515,21 +1570,23 @@ async def chat_with_model(request: ChatRequest):
     Allows users to chat with the final converged model from either system.
     """
     session_id = request.session_id
-    
+
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     state = sessions[session_id]
-    
+
     # Determine which model to use based on system selection
-    if request.system == 'cupid':
+    if request.system == "cupid":
         # Use the most recently selected CUPID model (winner of last round)
         if state.final_cupid_model_id:
             model_id = state.final_cupid_model_id
         elif state.cupid.history:
             # Get most recent winner
             last_entry = state.cupid.history[-1]
-            model_id = last_entry.get('winner_id', state.cupid.arms[0] if state.cupid.arms else MODEL_IDS[0])
+            model_id = last_entry.get(
+                "winner_id", state.cupid.arms[0] if state.cupid.arms else MODEL_IDS[0]
+            )
         else:
             model_id = state.cupid.arms[0] if state.cupid.arms else MODEL_IDS[0]
     else:  # baseline
@@ -1537,23 +1594,23 @@ async def chat_with_model(request: ChatRequest):
             model_id = state.final_baseline_model_id
         elif state.baseline.history:
             last_entry = state.baseline.history[-1]
-            model_id = last_entry.get('winner_id', state.baseline.arms[0] if state.baseline.arms else MODEL_IDS[0])
+            model_id = last_entry.get(
+                "winner_id",
+                state.baseline.arms[0] if state.baseline.arms else MODEL_IDS[0],
+            )
         else:
             model_id = state.baseline.arms[0] if state.baseline.arms else MODEL_IDS[0]
-    
+
     # Call the model
     result = call_openrouter(request.message, model_id)
-    
+
     # Track cost
-    if request.system == 'cupid':
+    if request.system == "cupid":
         state.cupid.total_cost += result["cost"]
     else:
         state.baseline.total_cost += result["cost"]
-    
-    return ChatResponse(
-        response=result["text"],
-        cost=result["cost"]
-    )
+
+    return ChatResponse(response=result["text"], cost=result["cost"])
 
 
 # ================== Main ==================

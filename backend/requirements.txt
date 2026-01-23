@@ -51,3 +51,5 @@ botorch==0.10.0
 # Database
 asyncpg>=0.29.0
 databases[postgresql]>=0.8.0
+
+asyncio
