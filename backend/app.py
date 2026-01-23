@@ -785,6 +785,42 @@ class SessionState:
 
 def get_model_stats(model_id: int) -> Optional[ModelStats]:
     """Get model statistics from the CSV (without revealing the name)."""
+    
+    def safe_int(val):
+        """Safely convert value to int, handling comma-formatted numbers."""
+        if pd.isna(val) or val is None:
+            return None
+        if isinstance(val, (int, float)):
+            return int(val)
+        # Handle string with commas like "400,000"
+        try:
+            return int(str(val).replace(",", ""))
+        except (ValueError, TypeError):
+            return None
+    
+    def safe_float(val):
+        """Safely convert value to float."""
+        if pd.isna(val) or val is None:
+            return None
+        if isinstance(val, (int, float)):
+            return float(val)
+        try:
+            return float(str(val).replace(",", ""))
+        except (ValueError, TypeError):
+            return None
+    
+    def safe_bool(val):
+        """Safely convert value to bool."""
+        if pd.isna(val) or val is None:
+            return None
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, (int, float)):
+            return bool(val)
+        if isinstance(val, str):
+            return val.lower() in ('true', '1', 'yes')
+        return None
+    
     try:
         row = MODEL_POOL.loc[MODEL_POOL["id"] == int(model_id)]
         if row.empty:
@@ -793,46 +829,26 @@ def get_model_stats(model_id: int) -> Optional[ModelStats]:
 
         return ModelStats(
             id=int(model_id),
-            intelligence=int(row.get("intelligence", 0))
-            if pd.notna(row.get("intelligence"))
-            else None,
-            speed=int(row.get("speed", 0)) if pd.notna(row.get("speed")) else None,
-            reasoning=int(row.get("reasoning", 0))
-            if pd.notna(row.get("reasoning"))
-            else None,
-            input_price=float(row.get("input-price", 0))
-            if pd.notna(row.get("input-price"))
-            else None,
-            output_price=float(row.get("output-price", 0))
-            if pd.notna(row.get("output-price"))
-            else None,
-            context_window=int(row.get("window-context", 0))
-            if pd.notna(row.get("window-context"))
-            else None,
-            max_output=int(row.get("max-output", 0))
-            if pd.notna(row.get("max-output"))
-            else None,
-            text_input=bool(row.get("text-input", 0))
-            if pd.notna(row.get("text-input"))
-            else None,
-            image_input=bool(row.get("image-input", 0))
-            if pd.notna(row.get("image-input"))
-            else None,
-            voice_input=bool(row.get("voice-input", 0))
-            if pd.notna(row.get("voice-input"))
-            else None,
-            function_calling=bool(row.get("function-calling", 0))
-            if pd.notna(row.get("function-calling"))
-            else None,
-            structured_output=bool(row.get("structured-output", 0))
-            if pd.notna(row.get("structured-output"))
-            else None,
+            intelligence=safe_int(row.get("intelligence")),
+            speed=safe_int(row.get("speed")),
+            reasoning=safe_int(row.get("reasoning")),
+            input_price=safe_float(row.get("input-price")),
+            output_price=safe_float(row.get("output-price")),
+            context_window=safe_int(row.get("window-context")),
+            max_output=safe_int(row.get("max-output")),
+            text_input=safe_bool(row.get("text-input")),
+            image_input=safe_bool(row.get("image-input")),
+            voice_input=safe_bool(row.get("voice-input")),
+            function_calling=safe_bool(row.get("function-calling")),
+            structured_output=safe_bool(row.get("structured-output")),
             knowledge_cutoff=str(row.get("knowledge-cutoff", ""))
             if pd.notna(row.get("knowledge-cutoff"))
             else None,
         )
     except Exception as e:
-        print(f"Error getting model stats for {model_id}: {e}")
+        print(f"[get_model_stats] Error for model {model_id}: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
