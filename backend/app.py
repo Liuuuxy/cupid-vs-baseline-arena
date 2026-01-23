@@ -893,6 +893,15 @@ async def startup():
     print("=" * 60)
     print("[startup] LLM Model Selection User Study API starting...")
     print(f"[startup] DATABASE_URL configured: {bool(DATABASE_URL)}")
+    if DATABASE_URL:
+        # Show masked URL for debugging (hide password)
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(DATABASE_URL)
+            masked_url = f"{parsed.scheme}://{parsed.username}:***@{parsed.hostname}:{parsed.port}{parsed.path}"
+            print(f"[startup] DATABASE_URL (masked): {masked_url}")
+        except:
+            print(f"[startup] DATABASE_URL (first 30 chars): {DATABASE_URL[:30]}...")
     print(f"[startup] DATABASE_AVAILABLE: {DATABASE_AVAILABLE}")
     print(f"[startup] database object: {database is not None}")
     print("=" * 60)
@@ -1086,6 +1095,51 @@ async def health_check():
     }
 
 
+@app.get("/debug/database")
+async def debug_database():
+    """Debug endpoint to check database status and contents."""
+    if not database:
+        return {
+            "error": "Database not configured",
+            "DATABASE_URL_set": bool(DATABASE_URL),
+            "DATABASE_AVAILABLE": DATABASE_AVAILABLE,
+        }
+    
+    try:
+        # Check connection
+        await database.execute("SELECT 1")
+        
+        # Get all records
+        records = await database.fetch_all(
+            "SELECT id, session_id, persona_group, created_at FROM study_results ORDER BY created_at DESC LIMIT 20"
+        )
+        
+        # Get total count
+        count_result = await database.fetch_one("SELECT COUNT(*) as count FROM study_results")
+        
+        return {
+            "status": "connected",
+            "total_records": count_result['count'] if count_result else 0,
+            "recent_records": [
+                {
+                    "id": r["id"],
+                    "session_id": r["session_id"],
+                    "persona_group": r["persona_group"],
+                    "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                }
+                for r in records
+            ],
+            "database_url_masked": DATABASE_URL[:20] + "..." if DATABASE_URL else None,
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+        }
+
+
 @app.get("/models")
 async def list_models():
     """List all available models in the pool."""
@@ -1191,6 +1245,10 @@ async def save_results(request: SaveResultsRequest):
         results_dict = request.model_dump()
         print(f"[save-results] Converted to dict, keys: {list(results_dict.keys())}")
 
+        # Check count before insert
+        before_count = await database.fetch_one("SELECT COUNT(*) as count FROM study_results")
+        print(f"[save-results] Records before insert: {before_count['count']}")
+
         # Use upsert (INSERT ... ON CONFLICT) to avoid race conditions
         print(f"[save-results] Executing database insert...")
         await database.execute(
@@ -1208,12 +1266,29 @@ async def save_results(request: SaveResultsRequest):
                 "results_json": json.dumps(results_dict),
             },
         )
+        
+        # Verify the insert worked
+        after_count = await database.fetch_one("SELECT COUNT(*) as count FROM study_results")
+        print(f"[save-results] Records after insert: {after_count['count']}")
+        
+        # Try to fetch the specific record we just inserted
+        verification = await database.fetch_one(
+            "SELECT session_id, persona_group, created_at FROM study_results WHERE session_id = :session_id",
+            values={"session_id": request.session_id}
+        )
+        
+        if verification:
+            print(f"[save-results] ✅ Verified record exists: session_id={verification['session_id']}, created_at={verification['created_at']}")
+        else:
+            print(f"[save-results] ⚠️ Could not verify record - SELECT returned None")
+        
         print(f"[save-results] ✅ Successfully saved session {request.session_id}")
         return {
             "success": True,
             "message": "Results saved successfully",
             "saved": True,
             "session_id": request.session_id,
+            "verified": verification is not None,
         }
 
     except Exception as e:
