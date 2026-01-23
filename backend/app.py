@@ -1118,6 +1118,7 @@ class SaveResultsRequest(BaseModel):
     expert_subject: Optional[str] = None
     constraints: Optional[List[Dict[str, Any]]] = None
     budget: Optional[Dict[str, Any]] = None
+    initial_preference: Optional[str] = None
     final_state: Optional[Dict[str, Any]] = None
     history: Optional[List[Dict[str, Any]]] = None
     open_testing: Optional[Dict[str, Any]] = None
