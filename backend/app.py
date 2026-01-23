@@ -1107,53 +1107,28 @@ async def save_results(request: SaveResultsRequest):
         # Convert request to dict for JSON storage
         results_dict = request.model_dump()
         
-        # Check if session already exists (update vs insert)
-        existing = await database.fetch_one(
-            query="SELECT id FROM study_results WHERE session_id = :session_id",
-            values={"session_id": request.session_id}
+        # Use upsert (INSERT ... ON CONFLICT) to avoid race conditions
+        await database.execute(
+            query="""
+            INSERT INTO study_results (session_id, persona_group, results_json)
+            VALUES (:session_id, :persona_group, :results_json)
+            ON CONFLICT (session_id) DO UPDATE SET
+                results_json = EXCLUDED.results_json,
+                persona_group = EXCLUDED.persona_group,
+                created_at = CURRENT_TIMESTAMP
+            """,
+            values={
+                "session_id": request.session_id,
+                "persona_group": request.persona_group,
+                "results_json": json.dumps(results_dict)
+            }
         )
-        
-        if existing:
-            # Update existing record
-            await database.execute(
-                query="""
-                UPDATE study_results 
-                SET results_json = :results_json, 
-                    persona_group = :persona_group,
-                    created_at = CURRENT_TIMESTAMP
-                WHERE session_id = :session_id
-                """,
-                values={
-                    "session_id": request.session_id,
-                    "persona_group": request.persona_group,
-                    "results_json": json.dumps(results_dict)
-                }
-            )
-            return {
-                "success": True,
-                "message": "Results updated successfully",
-                "saved": True,
-                "session_id": request.session_id
-            }
-        else:
-            # Insert new record
-            await database.execute(
-                query="""
-                INSERT INTO study_results (session_id, persona_group, results_json)
-                VALUES (:session_id, :persona_group, :results_json)
-                """,
-                values={
-                    "session_id": request.session_id,
-                    "persona_group": request.persona_group,
-                    "results_json": json.dumps(results_dict)
-                }
-            )
-            return {
-                "success": True,
-                "message": "Results saved successfully",
-                "saved": True,
-                "session_id": request.session_id
-            }
+        return {
+            "success": True,
+            "message": "Results saved successfully",
+            "saved": True,
+            "session_id": request.session_id
+        }
     
     except Exception as e:
         print(f"Error saving results: {e}")
