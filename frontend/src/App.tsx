@@ -15,8 +15,8 @@ import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
 import 'katex/dist/katex.min.css';
 // --- API CONFIGURATION ---
-// const API_URL = 'https://cupid-vs-baseline-arena.onrender.com';
-const API_URL = 'http://localhost:8000';
+const API_URL = 'https://cupid-vs-baseline-arena.onrender.com';
+// const API_URL = 'http://localhost:8000';
 const SURVEY_URL = "https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbesl1iMmrT8";
 
 // --- MARKDOWN COMPONENT WITH STYLING ---
