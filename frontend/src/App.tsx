@@ -118,7 +118,7 @@ const ImageDisplay: React.FC<{
 
   if (loading) {
     return (
-      <div className={`flex items-center justify-center bg-gray-100 rounded-lg ${className}`} style={{ minHeight: '200px' }}>
+      <div className={`flex items-center justify-center bg-gray-100 rounded-lg w-full h-full ${className}`} style={{ minHeight: 'min(200px, 100%)' }}>
         <div className="text-center">
           <RefreshCw className="animate-spin mx-auto mb-2 text-blue-500" size={32} />
           <p className="text-sm text-gray-500">Generating image...</p>
@@ -129,7 +129,7 @@ const ImageDisplay: React.FC<{
 
   if (imageError || !imageUrl) {
     return (
-      <div className={`flex items-center justify-center bg-gray-100 rounded-lg ${className}`} style={{ minHeight: '200px' }}>
+      <div className={`flex items-center justify-center bg-gray-100 rounded-lg w-full h-full ${className}`} style={{ minHeight: 'min(200px, 100%)' }}>
         <div className="text-center text-gray-400">
           <AlertCircle className="mx-auto mb-2" size={32} />
           <p className="text-sm">Failed to load image</p>
@@ -139,7 +139,7 @@ const ImageDisplay: React.FC<{
   }
 
   return (
-    <div className={`relative w-full h-full ${className}`}>
+    <div className={`relative w-full h-full max-h-[60vh] flex items-center justify-center bg-gray-50 rounded-lg shadow-md overflow-hidden ${className}`}>
       {!imageLoaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-lg">
           <RefreshCw className="animate-spin text-blue-500" size={24} />
@@ -148,12 +148,13 @@ const ImageDisplay: React.FC<{
       <img
         src={imageUrl}
         alt={alt}
-        className={`block w-full h-full object-contain rounded-lg shadow-md transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+        className={`block max-w-full max-h-full object-contain transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
         onLoad={() => setImageLoaded(true)}
         onError={() => setImageError(true)}
       />
     </div>
   );
+
 };
 
 // --- CONTENT DISPLAY (handles both text and image) ---
@@ -1337,8 +1338,8 @@ const App: React.FC = () => {
         <div
           onClick={() => setVote(side)}
           className={`flex-grow cursor-pointer mb-3 ${mode === 'image'
-              ? 'h-48 md:h-64 flex items-center justify-center overflow-hidden'
-              : 'overflow-y-auto h-48 md:h-auto md:max-h-64'
+            ? 'h-48 md:h-64 flex items-center justify-center overflow-hidden'
+            : 'overflow-y-auto h-48 md:h-auto md:max-h-64'
             }`}
         >
           {data.text ? (
