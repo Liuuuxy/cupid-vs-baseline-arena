@@ -248,6 +248,7 @@ def call_runware(prompt: str, model_id: int, width: int = 1024, height: int = 10
             "taskUUID": task_uuid,
         }
 
+    # Runware API expects array of task objects
     payload = [{
         "taskType": "imageInference",
         "taskUUID": task_uuid,
@@ -255,7 +256,6 @@ def call_runware(prompt: str, model_id: int, width: int = 1024, height: int = 10
         "positivePrompt": prompt,
         "width": width,
         "height": height,
-        "steps": 30,
         "numberResults": 1,
         "outputType": "URL",
         "outputFormat": "JPG",
@@ -263,9 +263,16 @@ def call_runware(prompt: str, model_id: int, width: int = 1024, height: int = 10
     }]
 
     try:
-        response = requests.post(RUNWARE_URL, headers=RUNWARE_HEADERS, data=json.dumps(payload), timeout=120)
+        response = requests.post(
+            f"{RUNWARE_URL}/tasks",
+            headers=RUNWARE_HEADERS,
+            json=payload,
+            timeout=120
+        )
         response.raise_for_status()
         data = response.json()
+        
+        # Response format: {"data": [{"taskType": "imageInference", "imageURL": "...", "cost": 0.001, ...}]}
         if "data" in data and len(data["data"]) > 0:
             result = data["data"][0]
             return {
@@ -279,6 +286,7 @@ def call_runware(prompt: str, model_id: int, width: int = 1024, height: int = 10
             error_msg = errors[0].get("message", "Unknown error") if errors else "No image returned"
             return {"imageUrl": "", "cost": 0.0, "seed": 0, "taskUUID": task_uuid, "error": error_msg}
     except Exception as e:
+        print(f"Runware API error: {e}")
         return {"imageUrl": "", "cost": 0.0, "seed": 0, "taskUUID": task_uuid, "error": str(e)}
 
 

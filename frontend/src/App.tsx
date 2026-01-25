@@ -406,7 +406,7 @@ const BUDGET_RATING_LABELS = [
 ];
 
 // --- TUTORIAL STEPS ---
-const INTERACTION_TUTORIAL_STEPS = [
+const INTERACTION_TUTORIAL_STEPS_TEXT = [
   {
     title: 'Welcome to the Interaction Stage',
     description: 'In this stage, you will ask questions and interact with the system. Based on your inputs, the system will match you with a suitable model.',
@@ -434,7 +434,30 @@ const INTERACTION_TUTORIAL_STEPS = [
   }
 ];
 
-const TESTING_TUTORIAL_STEPS = [
+const INTERACTION_TUTORIAL_STEPS_IMAGE = [
+  {
+    title: 'Welcome to Image Generation',
+    description: 'Enter image prompts and the system will match you with the best text-to-image generation model based on your preferences.',
+    icon: '🎨'
+  },
+  {
+    title: 'Selecting Your Preferred Image',
+    description: 'For each prompt, you\'ll see two generated images from different models. Click on the one you prefer. Your choices help the system learn your style.',
+    icon: '👆'
+  },
+  {
+    title: 'Optional Feedback',
+    description: 'You can provide feedback like "more realistic" or "more artistic style" to guide the system toward your ideal image generation model.',
+    icon: '💬'
+  },
+  {
+    title: 'Confirm When Satisfied',
+    description: 'When you\'re happy with the image quality, click "I\'m Satisfied" to proceed to the testing phase.',
+    icon: '✅'
+  }
+];
+
+const TESTING_TUTORIAL_STEPS_TEXT = [
   {
     title: 'Welcome to the Testing Stage',
     description: 'Now you\'ll test both matched models side-by-side. The same prompt goes to both systems so you can compare their outputs directly.',
@@ -456,6 +479,33 @@ const TESTING_TUTORIAL_STEPS = [
     icon: '📊'
   }
 ];
+
+const TESTING_TUTORIAL_STEPS_IMAGE = [
+  {
+    title: 'Welcome to Image Testing',
+    description: 'Now you\'ll test both matched image models side-by-side. The same prompt goes to both systems so you can compare their generated images directly.',
+    icon: '🔬'
+  },
+  {
+    title: 'Focus on Image Quality',
+    description: 'Pay attention to visual quality, accuracy to your prompt, style consistency, and detail. This will help you decide which system found a better model for you.',
+    icon: '⭐'
+  },
+  {
+    title: 'Compare Side-by-Side',
+    description: 'Each prompt shows System A and System B images next to each other. You have up to 10 rounds to test thoroughly.',
+    icon: '↔️'
+  },
+  {
+    title: 'Proceed to Rating',
+    description: 'After testing, you\'ll rate both systems on image quality and budget compliance. Make sure to test enough to form a clear opinion!',
+    icon: '📊'
+  }
+];
+
+// Legacy aliases for compatibility
+const INTERACTION_TUTORIAL_STEPS = INTERACTION_TUTORIAL_STEPS_TEXT;
+const TESTING_TUTORIAL_STEPS = TESTING_TUTORIAL_STEPS_TEXT;
 
 // --- EXPERT SUBJECTS ---
 const EXPERT_SUBJECTS = [
@@ -941,8 +991,8 @@ const App: React.FC = () => {
   };
 
   const startSession = async () => {
-    if (!prompt.trim()) { setError("Please enter a query to start."); return; }
-    if (!initialPreference.trim()) { setError("Please describe what kind of LLM you're looking for."); return; }
+    if (!prompt.trim()) { setError(mode === 'image' ? "Please enter an image prompt to start." : "Please enter a query to start."); return; }
+    if (!initialPreference.trim()) { setError(mode === 'image' ? "Please describe what kind of images you want to generate." : "Please describe what kind of LLM you're looking for."); return; }
     setError(null);
     await fetchNextRound(true, prompt);
     setInit(false);
@@ -1010,7 +1060,7 @@ const App: React.FC = () => {
       return;
     }
 
-    if (!nextPrompt.trim()) { setError("Please enter your next query to continue."); return; }
+    if (!nextPrompt.trim()) { setError(mode === 'image' ? "Please enter your next image prompt to continue." : "Please enter your next query to continue."); return; }
     setError(null);
     await fetchNextRound(false, nextPrompt);
   };
@@ -1166,7 +1216,7 @@ const App: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `llm_matching_results_${sessionId}.json`;
+    a.download = `${mode === 'image' ? 'image_gen' : 'llm'}_matching_results_${sessionId}.json`;
     a.click();
     setHasDownloaded(true);
   };
@@ -1283,12 +1333,16 @@ const App: React.FC = () => {
           )}
         </div>
 
-        {/* Markdown rendered content */}
+        {/* Content rendered based on mode */}
         <div onClick={() => setVote(side)} className="flex-grow cursor-pointer overflow-y-auto h-48 md:h-auto md:max-h-64 mb-3">
           {data.text ? (
-            <Markdown content={data.text} />
+            mode === 'image' ? (
+              <ImageDisplay imageUrl={data.text} alt={`Generated image ${label}`} />
+            ) : (
+              <Markdown content={data.text} />
+            )
           ) : (
-            <span className="text-gray-400 italic">No response</span>
+            <span className="text-gray-400 italic">{mode === 'image' ? 'No image generated' : 'No response'}</span>
           )}
         </div>
 
@@ -1888,8 +1942,10 @@ const App: React.FC = () => {
 
             {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm flex items-center gap-2"><AlertCircle size={16} />{error}</div>}
             <div className="mb-4 text-left">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Enter your first query:</label>
-              <textarea className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={5} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Type your question or task here..." />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {mode === 'image' ? 'Enter your first image prompt:' : 'Enter your first query:'}
+              </label>
+              <textarea className="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={5} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={mode === 'image' ? "Describe the image you want to generate..." : "Type your question or task here..."} />
               <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
                 <AlertCircle size={12} />
                 <span><strong>Privacy:</strong> Do not enter personal information. Prompts and responses are collected for research.</span>
@@ -1900,15 +1956,23 @@ const App: React.FC = () => {
             <div className="mb-4 bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-lg border border-indigo-200 text-left">
               <div className="flex items-center gap-2 mb-2">
                 <Sparkles size={18} className="text-indigo-600" />
-                <label className="text-sm font-bold text-indigo-900">What kind of LLM would you like? <span className="text-red-500">*</span></label>
+                <label className="text-sm font-bold text-indigo-900">
+                  {mode === 'image' ? 'What kind of images do you want to generate?' : 'What kind of LLM would you like?'} <span className="text-red-500">*</span>
+                </label>
               </div>
               <p className="text-xs text-indigo-700 mb-3">
-                Tell the system your preferences to help find the best model for you. For example: "a cheap model", "a friendly assistant", "technology-focused", "fast responses", etc.
+                {mode === 'image' 
+                  ? 'Tell the system your preferences to help find the best image generation model for you. For example: "realistic photos", "artistic style", "anime illustrations", "high detail", etc.'
+                  : 'Tell the system your preferences to help find the best model for you. For example: "a cheap model", "a friendly assistant", "technology-focused", "fast responses", etc.'
+                }
               </p>
               <input
                 type="text"
                 className="w-full border border-indigo-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                placeholder='e.g., "I want a cheap model", "I prefer detailed explanations", "Something fast and concise"'
+                placeholder={mode === 'image' 
+                  ? 'e.g., "I want realistic photos", "I prefer artistic illustrations", "Something with vibrant colors"'
+                  : 'e.g., "I want a cheap model", "I prefer detailed explanations", "Something fast and concise"'
+                }
                 value={initialPreference}
                 onChange={(e) => setInitialPreference(e.target.value)}
               />
@@ -1935,7 +1999,9 @@ const App: React.FC = () => {
         <header className="bg-white border-b sticky top-0 z-20">
           <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <div className="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">LLM MATCHMAKING</div>
+              <div className={`${mode === 'image' ? 'bg-purple-600' : 'bg-blue-600'} text-white px-2 py-1 rounded text-xs font-bold`}>
+                {mode === 'image' ? 'IMAGE GENERATION' : 'LLM MATCHMAKING'}
+              </div>
             </div>
             <div className="flex items-center space-x-3 text-sm font-mono">
               <div className="flex items-center"><span className="text-gray-400 mr-1">Round</span><span className="font-bold">{arenaState?.round || 0}/{budgetConstraints.maxRounds}</span></div>
@@ -2091,7 +2157,7 @@ const App: React.FC = () => {
 
               {!isLastRound && (
                 <textarea
-                  placeholder="Enter your next query (required to continue)..."
+                  placeholder={mode === 'image' ? "Enter your next image prompt (required to continue)..." : "Enter your next query (required to continue)..."}
                   className={`w-full border rounded-lg px-3 py-3 text-sm resize-none ${!nextPrompt.trim() && cupidVote && baselineVote ? 'border-red-300 bg-red-50' : ''}`}
                   rows={4}
                   value={nextPrompt}
@@ -2100,7 +2166,7 @@ const App: React.FC = () => {
               )}
 
               <button onClick={handleSubmitRound} disabled={loading} className="w-full md:w-auto md:self-end bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition">
-                {isLastRound ? 'Continue to Play with Models →' : 'Submit & Next →'}
+                {isLastRound ? (mode === 'image' ? 'Continue to Test Image Models →' : 'Continue to Play with Models →') : 'Submit & Next →'}
               </button>
             </div>
           </div>
@@ -2239,7 +2305,7 @@ const App: React.FC = () => {
                       <span className="text-xs text-gray-400">${round.costA.toFixed(5)}</span>
                     </div>
                     <div className="prose prose-sm max-w-none">
-                      <Markdown content={round.responseA} />
+                      <ContentDisplay content={round.responseA} contentType={mode === 'image' ? 'image' : 'text'} />
                     </div>
                   </div>
 
@@ -2250,7 +2316,7 @@ const App: React.FC = () => {
                       <span className="text-xs text-gray-400">${round.costB.toFixed(5)}</span>
                     </div>
                     <div className="prose prose-sm max-w-none">
-                      <Markdown content={round.responseB} />
+                      <ContentDisplay content={round.responseB} contentType={mode === 'image' ? 'image' : 'text'} />
                     </div>
                   </div>
                 </div>
@@ -2260,7 +2326,9 @@ const App: React.FC = () => {
             {openTestLoading && (
               <div className="bg-white rounded-xl border p-8 text-center">
                 <RefreshCw size={24} className="animate-spin mx-auto text-blue-600 mb-2" />
-                <p className="text-gray-500 text-sm">Getting responses from both models...</p>
+                <p className="text-gray-500 text-sm">
+                  {mode === 'image' ? 'Generating images from both models...' : 'Getting responses from both models...'}
+                </p>
               </div>
             )}
           </div>
@@ -2271,7 +2339,7 @@ const App: React.FC = () => {
               <input
                 type="text"
                 className="flex-grow border rounded-lg px-4 py-3"
-                placeholder={canChat ? "Enter your prompt (will be sent to both models)..." : `Maximum ${OPEN_TESTING_MAX_ROUNDS} rounds reached`}
+                placeholder={canChat ? (mode === 'image' ? "Enter your image prompt (will be sent to both models)..." : "Enter your prompt (will be sent to both models)...") : `Maximum ${OPEN_TESTING_MAX_ROUNDS} rounds reached`}
                 value={openTestInput}
                 onChange={(e) => setOpenTestInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && canChat && sendSideBySideMessage()}
