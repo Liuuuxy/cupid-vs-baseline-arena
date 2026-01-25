@@ -293,8 +293,8 @@ const RATING_LABELS = [
 function sampleBudget(): BudgetConstraints {
   const minCost = 0.5;
   const maxCost = 1.5;
-  const minRounds = 2;
-  const maxRounds = 2;
+  const minRounds = 5;
+  const maxRounds = 15;
 
   // Random cost between 0.5 and 1.5 (rounded to 2 decimal places)
   const randomCost = Math.round((minCost + Math.random() * (maxCost - minCost)) * 100) / 100;
@@ -1190,8 +1190,8 @@ const App: React.FC = () => {
     }
   };
 
-  
-const verifyImageResultsSaved = async () => {
+
+  const verifyImageResultsSaved = async () => {
     setSaveStatus('saving');
     setSaveMessage('Checking image results in database...');
     console.log('[verifyImageResultsSaved] Starting check...', { sessionId });
@@ -1245,7 +1245,7 @@ const verifyImageResultsSaved = async () => {
     }
   };
 
-const handleFinalSubmit = async () => {
+  const handleFinalSubmit = async () => {
     await saveSessionData();
 
     // Save final results once. Backend routes text vs image into separate tables.
