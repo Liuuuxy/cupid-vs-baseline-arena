@@ -139,7 +139,7 @@ const ImageDisplay: React.FC<{
   }
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative w-full h-full ${className}`}>
       {!imageLoaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-lg">
           <RefreshCw className="animate-spin text-blue-500" size={24} />
@@ -148,7 +148,7 @@ const ImageDisplay: React.FC<{
       <img
         src={imageUrl}
         alt={alt}
-        className={`w-full h-auto rounded-lg shadow-md transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+        className={`block w-full h-full object-contain rounded-lg shadow-md transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
         onLoad={() => setImageLoaded(true)}
         onError={() => setImageError(true)}
       />
@@ -1334,7 +1334,13 @@ const App: React.FC = () => {
         </div>
 
         {/* Content rendered based on mode */}
-        <div onClick={() => setVote(side)} className="flex-grow cursor-pointer overflow-y-auto h-48 md:h-auto md:max-h-64 mb-3">
+        <div
+          onClick={() => setVote(side)}
+          className={`flex-grow cursor-pointer mb-3 ${mode === 'image'
+              ? 'h-48 md:h-64 flex items-center justify-center overflow-hidden'
+              : 'overflow-y-auto h-48 md:h-auto md:max-h-64'
+            }`}
+        >
           {data.text ? (
             mode === 'image' ? (
               <ImageDisplay imageUrl={data.text} alt={`Generated image ${label}`} />
@@ -1586,8 +1592,8 @@ const App: React.FC = () => {
         <div className="max-w-3xl w-full bg-white shadow-xl rounded-2xl overflow-hidden flex flex-col">
           <div
             className={`p-6 md:p-8 text-white text-center ${mode === 'image'
-                ? 'bg-gradient-to-r from-purple-600 to-indigo-600'
-                : 'bg-gradient-to-r from-blue-600 to-indigo-600'
+              ? 'bg-gradient-to-r from-purple-600 to-indigo-600'
+              : 'bg-gradient-to-r from-blue-600 to-indigo-600'
               }`}
           >
             <h1 className="text-2xl md:text-3xl font-bold">
@@ -2294,8 +2300,8 @@ const App: React.FC = () => {
                       onClick={handleSatisfied}
                       disabled={!cupidVote || !baselineVote}
                       className={`px-4 py-2 rounded-lg font-medium transition text-sm ${cupidVote && baselineVote
-                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         }`}
                       title={!cupidVote || !baselineVote ? 'Please select your preferred response from both systems first' : ''}
                     >
