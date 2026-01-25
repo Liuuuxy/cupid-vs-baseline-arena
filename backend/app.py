@@ -224,140 +224,176 @@ def _id_to_index(model_id: int, mode: ArenaMode = ArenaMode.TEXT) -> int:
 
 # ================== Database Functions for Image Results ==================
 async def init_image_database():
-    """Initialize the image results table in the existing database."""
+    """
+    Initialize the image results table (v2).
+
+    NOTE: This creates/uses a new table name (image_results_v2) so existing deployments
+    with the legacy image_results schema won't break.
+    """
     if not database:
         return
 
     create_table_query = """
-    CREATE TABLE IF NOT EXISTS image_results (
+    CREATE TABLE IF NOT EXISTS image_results_v2 (
         id SERIAL PRIMARY KEY,
         task_uuid VARCHAR(255) UNIQUE,
         session_id VARCHAR(255),
         model_id INTEGER,
-        model_name VARCHAR(255),
-        display_name VARCHAR(255),
-        prompt TEXT,
-        image_url TEXT,
-        width INTEGER,
-        height INTEGER,
-        seed BIGINT,
-        cost DECIMAL(10, 6),
         algorithm VARCHAR(50),
         round_number INTEGER,
         position VARCHAR(10),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        metadata JSONB
-    );
-    """
-
-    try:
-        await database.execute(create_table_query)
-        # Create indexes separately to avoid errors if they already exist
-        try:
-            await database.execute(
-                "CREATE INDEX IF NOT EXISTS idx_image_results_session ON image_results(session_id);"
-            )
-        except Exception:
-            pass
-        try:
-            await database.execute(
-                "CREATE INDEX IF NOT EXISTS idx_image_results_model ON image_results(model_id);"
-            )
-        except Exception:
-            pass
-        try:
-            await database.execute(
-                "CREATE INDEX IF NOT EXISTS idx_image_results_created ON image_results(created_at);"
-            )
-        except Exception:
-            pass
-        print("Image results table initialized successfully.")
-    except Exception as e:
-        print(f"Warning: Could not create image_results table: {e}")
-
-
-async def init_study_results_table():
-    """Initialize the study_results table for storing complete study data."""
-    if not database:
-        return
-
-    create_table_query = """
-    CREATE TABLE IF NOT EXISTS study_results (
-        id SERIAL PRIMARY KEY,
-        session_id VARCHAR(255) UNIQUE,
-        timestamp TIMESTAMP,
-        mode VARCHAR(20),
-        demographics JSONB,
-        persona_group VARCHAR(50),
-        expert_subject VARCHAR(100),
-        constraints JSONB,
-        budget JSONB,
-        initial_preference VARCHAR(50),
-        final_state JSONB,
-        history JSONB,
-        open_testing JSONB,
-        evaluation JSONB,
+        image_url TEXT,
+        ucb_score DOUBLE PRECISION,
+        data JSONB,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """
 
     try:
         await database.execute(create_table_query)
-        try:
-            await database.execute(
-                "CREATE INDEX IF NOT EXISTS idx_study_results_session ON study_results(session_id);"
-            )
-        except Exception:
-            pass
-        try:
-            await database.execute(
-                "CREATE INDEX IF NOT EXISTS idx_study_results_persona ON study_results(persona_group);"
-            )
-        except Exception:
-            pass
-        try:
-            await database.execute(
-                "CREATE INDEX IF NOT EXISTS idx_study_results_created ON study_results(created_at);"
-            )
-        except Exception:
-            pass
-        print("Study results table initialized successfully.")
+        # Indexes
+        for q in [
+            "CREATE INDEX IF NOT EXISTS idx_image_results_v2_session ON image_results_v2(session_id);",
+            "CREATE INDEX IF NOT EXISTS idx_image_results_v2_model ON image_results_v2(model_id);",
+            "CREATE INDEX IF NOT EXISTS idx_image_results_v2_algo ON image_results_v2(algorithm);",
+            "CREATE INDEX IF NOT EXISTS idx_image_results_v2_round ON image_results_v2(round_number);",
+            "CREATE INDEX IF NOT EXISTS idx_image_results_v2_created ON image_results_v2(created_at);",
+        ]:
+            try:
+                await database.execute(q)
+            except Exception:
+                pass
+        print("Image results (v2) table initialized successfully.")
+    except Exception as e:
+        print(f"Warning: Could not create image_results_v2 table: {e}")
+
+
+async def init_study_results_table():
+    """Initialize/upgrade the study_results table for storing complete *text* study data.
+
+    We keep a small set of first-class columns for indexing (session_id/persona_group/mode),
+    and store the full payload in `results_json`.
+    """
+    if not database:
+        return
+
+    # Create minimal table if it doesn't exist yet
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS study_results (
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(255) UNIQUE
+    );
+    """
+    try:
+        await database.execute(create_table_query)
     except Exception as e:
         print(f"Warning: Could not create study_results table: {e}")
+        return
+
+    # Add/upgrade columns (safe to run repeatedly)
+    alter_queries = [
+        "ALTER TABLE study_results ADD COLUMN IF NOT EXISTS persona_group VARCHAR(50);",
+        "ALTER TABLE study_results ADD COLUMN IF NOT EXISTS mode VARCHAR(20);",
+        "ALTER TABLE study_results ADD COLUMN IF NOT EXISTS results_json JSONB;",
+        "ALTER TABLE study_results ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
+    ]
+    for q in alter_queries:
+        try:
+            await database.execute(q)
+        except Exception:
+            pass
+
+    # Indexes
+    for q in [
+        "CREATE INDEX IF NOT EXISTS idx_study_results_session ON study_results(session_id);",
+        "CREATE INDEX IF NOT EXISTS idx_study_results_persona ON study_results(persona_group);",
+        "CREATE INDEX IF NOT EXISTS idx_study_results_mode ON study_results(mode);",
+        "CREATE INDEX IF NOT EXISTS idx_study_results_created ON study_results(created_at);",
+    ]:
+        try:
+            await database.execute(q)
+        except Exception:
+            pass
+
+    print("Study results table initialized/upgraded successfully.")
+
+
+async def init_image_study_results_table():
+    """Initialize/upgrade the image_study_results table for storing complete *image* study data.
+
+    Mirrors `study_results` schema (session_id/persona_group/mode/results_json/created_at),
+    but lives in a separate table so image studies never write into `study_results`.
+    """
+    if not database:
+        return
+
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS image_study_results (
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(255) UNIQUE
+    );
+    """
+    try:
+        await database.execute(create_table_query)
+    except Exception as e:
+        print(f"Warning: Could not create image_study_results table: {e}")
+        return
+
+    alter_queries = [
+        "ALTER TABLE image_study_results ADD COLUMN IF NOT EXISTS persona_group VARCHAR(50);",
+        "ALTER TABLE image_study_results ADD COLUMN IF NOT EXISTS mode VARCHAR(20);",
+        "ALTER TABLE image_study_results ADD COLUMN IF NOT EXISTS results_json JSONB;",
+        "ALTER TABLE image_study_results ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
+    ]
+    for q in alter_queries:
+        try:
+            await database.execute(q)
+        except Exception:
+            pass
+
+    for q in [
+        "CREATE INDEX IF NOT EXISTS idx_image_study_results_session ON image_study_results(session_id);",
+        "CREATE INDEX IF NOT EXISTS idx_image_study_results_persona ON image_study_results(persona_group);",
+        "CREATE INDEX IF NOT EXISTS idx_image_study_results_mode ON image_study_results(mode);",
+        "CREATE INDEX IF NOT EXISTS idx_image_study_results_created ON image_study_results(created_at);",
+    ]:
+        try:
+            await database.execute(q)
+        except Exception:
+            pass
+
+    print("Image study results table initialized/upgraded successfully.")
 
 
 async def save_image_result(
     task_uuid: str,
     session_id: Optional[str],
     model_id: int,
-    model_name: str,
-    display_name: str,
-    prompt: str,
     image_url: str,
-    width: int,
-    height: int,
-    seed: int,
-    cost: float,
     algorithm: Optional[str] = None,
     round_number: Optional[int] = None,
     position: Optional[str] = None,
-    metadata: Optional[Dict] = None,
+    data: Optional[Dict] = None,
+    ucb_score: Optional[float] = None,
 ):
-    """Save image generation result to the database."""
+    """
+    Save an image generation result to the database (v2).
+
+    All generation details should go into the JSONB `data` column.
+    The `image_url` is also stored as a first-class column for easier querying.
+    """
     if not database:
         return
 
     insert_query = """
-    INSERT INTO image_results 
-    (task_uuid, session_id, model_id, model_name, display_name, prompt, image_url, 
-     width, height, seed, cost, algorithm, round_number, position, metadata)
-    VALUES 
-    (:task_uuid, :session_id, :model_id, :model_name, :display_name, :prompt, :image_url,
-     :width, :height, :seed, :cost, :algorithm, :round_number, :position, :metadata)
+    INSERT INTO image_results_v2
+    (task_uuid, session_id, model_id, algorithm, round_number, position, image_url, ucb_score, data)
+    VALUES
+    (:task_uuid, :session_id, :model_id, :algorithm, :round_number, :position, :image_url, :ucb_score, :data)
     ON CONFLICT (task_uuid) DO UPDATE SET
         image_url = EXCLUDED.image_url,
-        cost = EXCLUDED.cost,
-        metadata = EXCLUDED.metadata
+        ucb_score = EXCLUDED.ucb_score,
+        data = EXCLUDED.data
     """
 
     try:
@@ -367,22 +403,16 @@ async def save_image_result(
                 "task_uuid": task_uuid,
                 "session_id": session_id,
                 "model_id": model_id,
-                "model_name": model_name,
-                "display_name": display_name,
-                "prompt": prompt,
-                "image_url": image_url,
-                "width": width,
-                "height": height,
-                "seed": seed,
-                "cost": cost,
                 "algorithm": algorithm,
                 "round_number": round_number,
                 "position": position,
-                "metadata": json.dumps(metadata) if metadata else None,
+                "image_url": image_url,
+                "ucb_score": ucb_score,
+                "data": json.dumps(data) if data else None,
             },
         )
     except Exception as e:
-        print(f"Warning: Could not save image result to database: {e}")
+        print(f"Warning: Could not save image result (v2) to database: {e}")
 
 
 # ================== API Call Functions ==================
@@ -460,6 +490,7 @@ async def call_runware(
     algorithm: Optional[str] = None,
     round_number: Optional[int] = None,
     position: Optional[str] = None,
+    ucb_score: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Generate image via Runware SDK (WebSocket-based)."""
     global runware_client
@@ -478,22 +509,32 @@ async def call_runware(
             "taskUUID": task_uuid,
         }
         # Save mock result to database
+        payload = {
+            "provider": "mock",
+            "model_id": model_id,
+            "model_name": model_name,
+            "display_name": display_name,
+            "prompt": prompt,
+            "width": width,
+            "height": height,
+            "seed": result.get("seed", 0),
+            "cost": result.get("cost", 0.0),
+            "algorithm": algorithm,
+            "round_number": round_number,
+            "position": position,
+            "image_url": result.get("imageUrl", ""),
+            "ucb_score": ucb_score,
+        }
         await save_image_result(
             task_uuid=task_uuid,
             session_id=session_id,
             model_id=model_id,
-            model_name=model_name,
-            display_name=display_name,
-            prompt=prompt,
-            image_url=result["imageUrl"],
-            width=width,
-            height=height,
-            seed=result["seed"],
-            cost=result["cost"],
+            image_url=result.get("imageUrl", ""),
             algorithm=algorithm,
             round_number=round_number,
             position=position,
-            metadata={"mock": True},
+            ucb_score=ucb_score,
+            data=payload,
         )
         return result
 
@@ -527,22 +568,33 @@ async def call_runware(
                 }
 
                 # Save result to image database
+                payload = {
+                    "provider": "runware-python",
+                    "model_id": model_id,
+                    "model_name": model_name,
+                    "display_name": display_name,
+                    "prompt": prompt,
+                    "width": width,
+                    "height": height,
+                    "seed": result.get("seed", 0),
+                    "cost": result.get("cost", 0.0),
+                    "algorithm": algorithm,
+                    "round_number": round_number,
+                    "position": position,
+                    "image_url": result.get("imageUrl", ""),
+                    "ucb_score": ucb_score,
+                    "runware": {"model": model_name},
+                }
                 await save_image_result(
-                    task_uuid=result["taskUUID"],
+                    task_uuid=result.get("taskUUID", task_uuid),
                     session_id=session_id,
                     model_id=model_id,
-                    model_name=model_name,
-                    display_name=display_name,
-                    prompt=prompt,
-                    image_url=result["imageUrl"],
-                    width=width,
-                    height=height,
-                    seed=result["seed"],
-                    cost=result["cost"],
+                    image_url=result.get("imageUrl", ""),
                     algorithm=algorithm,
                     round_number=round_number,
                     position=position,
-                    metadata={"sdk": "runware-python", "model": model_name},
+                    ucb_score=ucb_score,
+                    data=payload,
                 )
                 # In the SDK response handling section, add:
                 print(
@@ -859,6 +911,11 @@ class CUPIDState:
         self.round_count = 0
         self.history: List[Dict] = []
 
+        # Optional: last computed UCB scores (for logging/analytics)
+        self.last_ucb_scores: Optional[Dict[int, float]] = None
+        self.last_pair_ucb: Optional[Dict[str, float]] = None
+        self.last_ctx_idx: Optional[int] = None
+
     @property
     def current_left_id(self) -> Optional[int]:
         if self.current_left_idx is not None and 0 <= self.current_left_idx < len(
@@ -887,6 +944,10 @@ class CUPIDState:
                 j,
                 0,
             )
+            # No GP/UCB in fallback mode
+            self.last_ucb_scores = None
+            self.last_pair_ucb = None
+            self.last_ctx_idx = 0
             return self.arms[i], self.arms[j]
 
         cost_vec = torch.zeros(self.K, dtype=torch.double)
@@ -913,6 +974,22 @@ class CUPIDState:
         i, j = top[0], top[1] if len(top) > 1 else top[0]
         self.current_left_idx, self.current_right_idx = i, j
         self.current_ctx_idx = self.belief.map()
+
+        # Persist UCB scores for logging/analytics (optional)
+        try:
+            ucb_list = ucb.detach().cpu().tolist()
+            self.last_ucb_scores = {
+                self.arms[idx]: float(ucb_list[idx]) for idx in range(len(self.arms))
+            }
+            self.last_pair_ucb = {
+                "left": self.last_ucb_scores.get(self.arms[i]),
+                "right": self.last_ucb_scores.get(self.arms[j]),
+            }
+            self.last_ctx_idx = self.current_ctx_idx
+        except Exception:
+            self.last_ucb_scores = None
+            self.last_pair_ucb = None
+            self.last_ctx_idx = self.current_ctx_idx
 
         return self.arms[i], self.arms[j]
 
@@ -1142,6 +1219,7 @@ async def startup():
         # Initialize tables
         await init_image_database()
         await init_study_results_table()
+        await init_image_study_results_table()
 
     # Initialize Runware SDK client
     if RUNWARE_SDK_AVAILABLE and RUNWARE_API_KEY:
@@ -1270,7 +1348,7 @@ async def get_image_results(
     if not database:
         raise HTTPException(status_code=503, detail="Database not available")
 
-    query = "SELECT * FROM image_results WHERE 1=1"
+    query = "SELECT * FROM image_results_v2 WHERE 1=1"
     params = {}
 
     if session_id:
@@ -1337,6 +1415,18 @@ async def interact(request: InteractRequest):
         sessions[session_id] = state
 
     cupid_left_id, cupid_right_id = state.cupid.select_pair(request.feedback_text or "")
+
+    # Optional: capture CUPID UCB scores for the selected pair (for logging)
+    cupid_left_ucb = None
+    cupid_right_ucb = None
+    try:
+        if getattr(state.cupid, "last_ucb_scores", None):
+            cupid_left_ucb = state.cupid.last_ucb_scores.get(cupid_left_id)
+            cupid_right_ucb = state.cupid.last_ucb_scores.get(cupid_right_id)
+    except Exception:
+        cupid_left_ucb = None
+        cupid_right_ucb = None
+
     baseline_left_id, baseline_right_id = state.baseline.select_pair()
 
     # Generate responses based on mode
@@ -1385,6 +1475,7 @@ async def interact(request: InteractRequest):
             algorithm="cupid",
             round_number=state.round_count + 1,
             position="left",
+            ucb_score=cupid_left_ucb,
         )
         cupid_right_result = await call_runware(
             prompt,
@@ -1395,6 +1486,7 @@ async def interact(request: InteractRequest):
             algorithm="cupid",
             round_number=state.round_count + 1,
             position="right",
+            ucb_score=cupid_right_ucb,
         )
         baseline_left_result = await call_runware(
             prompt,
@@ -1611,73 +1703,60 @@ async def get_session_data(session_id: str):
 
 @app.post("/save-results")
 async def save_results(request: SaveResultsRequest):
-    """Save complete study results to database."""
+    """Save complete study results to database.
+
+    - Text studies -> `study_results`
+    - Image studies -> `image_study_results` (never writes into `study_results`)
+    """
     if not database:
         return {"success": False, "saved": False, "message": "Database not available"}
 
-    # Determine mode from session_id
-    mode = "text"
-    if request.session_id and "image" in request.session_id:
-        mode = "image"
+    if not request.session_id:
+        return {"success": False, "saved": False, "message": "Missing session_id"}
 
-    # Parse timestamp
-    timestamp = None
-    if request.timestamp:
+    mode = "image" if ("image" in request.session_id) else "text"
+    target_table = "image_study_results" if mode == "image" else "study_results"
+
+    # Pydantic v1/v2 compatibility
+    try:
+        results_dict = request.model_dump()
+    except Exception:
+        results_dict = request.dict()
+
+    # For image studies, also embed all image generation rows (urls + ucb score + metadata)
+    if mode == "image":
         try:
-            timestamp = datetime.fromisoformat(request.timestamp.replace("Z", "+00:00"))
-        except Exception:
-            timestamp = datetime.now()
-    else:
-        timestamp = datetime.now()
-
-    insert_query = """
-    INSERT INTO study_results 
-    (session_id, timestamp, mode, demographics, persona_group, expert_subject, 
-     constraints, budget, initial_preference, final_state, history, open_testing, evaluation)
-    VALUES 
-    (:session_id, :timestamp, :mode, :demographics, :persona_group, :expert_subject,
-     :constraints, :budget, :initial_preference, :final_state, :history, :open_testing, :evaluation)
-    ON CONFLICT (session_id) DO UPDATE SET
-        timestamp = EXCLUDED.timestamp,
-        demographics = EXCLUDED.demographics,
-        persona_group = EXCLUDED.persona_group,
-        expert_subject = EXCLUDED.expert_subject,
-        constraints = EXCLUDED.constraints,
-        budget = EXCLUDED.budget,
-        initial_preference = EXCLUDED.initial_preference,
-        final_state = EXCLUDED.final_state,
-        history = EXCLUDED.history,
-        open_testing = EXCLUDED.open_testing,
-        evaluation = EXCLUDED.evaluation
-    """
+            rows = await database.fetch_all(
+                """
+                SELECT task_uuid, model_id, algorithm, round_number, position, image_url, ucb_score, data, created_at
+                FROM image_results_v2
+                WHERE session_id = :session_id
+                ORDER BY created_at ASC
+                """,
+                {"session_id": request.session_id},
+            )
+            results_dict["image_generations"] = [dict(r) for r in rows]
+            results_dict["image_generation_count"] = len(rows)
+        except Exception as e:
+            # Don't fail the whole save if this enrichment fails
+            results_dict["image_generations_error"] = str(e)
 
     try:
         await database.execute(
-            insert_query,
-            {
+            query=f"""
+            INSERT INTO {target_table} (session_id, persona_group, mode, results_json)
+            VALUES (:session_id, :persona_group, :mode, :results_json)
+            ON CONFLICT (session_id) DO UPDATE SET
+                results_json = EXCLUDED.results_json,
+                persona_group = EXCLUDED.persona_group,
+                mode = EXCLUDED.mode,
+                created_at = CURRENT_TIMESTAMP
+            """,
+            values={
                 "session_id": request.session_id,
-                "timestamp": timestamp,
-                "mode": mode,
-                "demographics": json.dumps(request.demographics)
-                if request.demographics
-                else None,
                 "persona_group": request.persona_group,
-                "expert_subject": request.expert_subject,
-                "constraints": json.dumps(request.constraints)
-                if request.constraints
-                else None,
-                "budget": json.dumps(request.budget) if request.budget else None,
-                "initial_preference": request.initial_preference,
-                "final_state": json.dumps(request.final_state)
-                if request.final_state
-                else None,
-                "history": json.dumps(request.history) if request.history else None,
-                "open_testing": json.dumps(request.open_testing)
-                if request.open_testing
-                else None,
-                "evaluation": json.dumps(request.evaluation)
-                if request.evaluation
-                else None,
+                "mode": mode,
+                "results_json": json.dumps(results_dict, default=str),
             },
         )
 
@@ -1687,7 +1766,7 @@ async def save_results(request: SaveResultsRequest):
         filename = f"{output_dir}/results_{request.session_id}.json"
         try:
             with open(filename, "w") as f:
-                json.dump(request.dict(), f, indent=2, default=str)
+                json.dump(results_dict, f, indent=2, default=str)
         except Exception as e:
             print(f"Warning: Could not save results to file: {e}")
 
@@ -1696,6 +1775,8 @@ async def save_results(request: SaveResultsRequest):
             "saved": True,
             "message": "Results saved successfully",
             "session_id": request.session_id,
+            "mode": mode,
+            "table": target_table,
         }
     except Exception as e:
         print(f"Error saving results to database: {e}")
@@ -1736,6 +1817,43 @@ async def get_study_results(
         return {"results": [dict(r) for r in results], "count": len(results)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/image-study-results")
+async def get_image_study_results(
+    session_id: Optional[str] = None,
+    persona_group: Optional[str] = None,
+    mode: Optional[str] = None,
+    limit: int = Query(100, le=1000),
+    offset: int = 0,
+):
+    """Retrieve image study results (one row per image study/session)."""
+    if not database:
+        raise HTTPException(status_code=503, detail="Database not available")
+
+    query = "SELECT * FROM image_study_results WHERE 1=1"
+    params: Dict[str, Any] = {}
+
+    if session_id:
+        query += " AND session_id = :session_id"
+        params["session_id"] = session_id
+    if persona_group:
+        query += " AND persona_group = :persona_group"
+        params["persona_group"] = persona_group
+    if mode:
+        query += " AND mode = :mode"
+        params["mode"] = mode
+
+    query += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+    params["limit"] = limit
+    params["offset"] = offset
+
+    try:
+        results = await database.fetch_all(query, params)
+        return {"results": [dict(r) for r in results], "count": len(results)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 if __name__ == "__main__":

@@ -15,8 +15,8 @@ import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
 import 'katex/dist/katex.min.css';
 // --- API CONFIGURATION ---
-const API_URL = 'https://cupid-vs-baseline-arena.onrender.com';
-// const API_URL = 'http://localhost:8000';
+// const API_URL = 'https://cupid-vs-baseline-arena.onrender.com';
+const API_URL = 'http://localhost:8000';
 const SURVEY_URL = "https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbesl1iMmrT8";
 
 // --- MARKDOWN COMPONENT WITH STYLING ---
@@ -293,8 +293,8 @@ const RATING_LABELS = [
 function sampleBudget(): BudgetConstraints {
   const minCost = 0.5;
   const maxCost = 1.5;
-  const minRounds = 5;
-  const maxRounds = 15;
+  const minRounds = 2;
+  const maxRounds = 2;
 
   // Random cost between 0.5 and 1.5 (rounded to 2 decimal places)
   const randomCost = Math.round((minCost + Math.random() * (maxCost - minCost)) * 100) / 100;
@@ -1190,13 +1190,68 @@ const App: React.FC = () => {
     }
   };
 
-  const handleFinalSubmit = async () => {
+  
+const verifyImageResultsSaved = async () => {
+    setSaveStatus('saving');
+    setSaveMessage('Checking image results in database...');
+    console.log('[verifyImageResultsSaved] Starting check...', { sessionId });
+
+    if (!sessionId) {
+      setSaveStatus('error');
+      setSaveMessage('Missing session ID. Please download results manually.');
+      return false;
+    }
+
+    try {
+      const url = `${API_URL}/image-results?session_id=${encodeURIComponent(sessionId)}&limit=1`;
+      const response = await fetch(url);
+      console.log('[verifyImageResultsSaved] Response status:', response.status);
+
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch (_) {
+        data = null;
+      }
+
+      if (!response.ok) {
+        const msg =
+          (data && (data.detail || data.message)) ||
+          `Failed to verify image results (HTTP ${response.status}). Please download results manually.`;
+        setSaveStatus('error');
+        setSaveMessage(msg);
+        return false;
+      }
+
+      const count = typeof data?.count === 'number' ? data.count : 0;
+
+      if (count > 0) {
+        setSaveStatus('saved');
+        setSaveMessage('Image results saved to database successfully!');
+        console.log('[verifyImageResultsSaved] ✅ Image results found for this session');
+        return true;
+      }
+
+      setSaveStatus('error');
+      setSaveMessage('No image results found in the database for this session. Please download the JSON as a backup.');
+      console.warn('[verifyImageResultsSaved] ⚠️ No image results returned');
+      return false;
+
+    } catch (err) {
+      console.error('[verifyImageResultsSaved] ❌ Error:', err);
+      setSaveStatus('error');
+      setSaveMessage('Failed to connect to server. Please download results manually.');
+      return false;
+    }
+  };
+
+const handleFinalSubmit = async () => {
     await saveSessionData();
 
-    // Try to save to database first
+    // Save final results once. Backend routes text vs image into separate tables.
     await saveResultsToDatabase();
 
-    // Show download reminder (as backup or confirmation)
+    // Show final steps / (optional) download modal
     setShowDownloadReminder(true);
   };
 
