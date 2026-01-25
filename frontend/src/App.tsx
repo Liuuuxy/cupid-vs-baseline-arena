@@ -102,9 +102,9 @@ const Markdown: React.FC<{ content: string; className?: string }> = ({ content, 
 };
 
 // --- IMAGE DISPLAY COMPONENT ---
-const ImageDisplay: React.FC<{ 
-  imageUrl: string; 
-  alt?: string; 
+const ImageDisplay: React.FC<{
+  imageUrl: string;
+  alt?: string;
   className?: string;
   loading?: boolean;
 }> = ({ imageUrl, alt = "Generated image", className = '', loading = false }) => {
@@ -916,7 +916,7 @@ const App: React.FC = () => {
     setSessionId(newSessionId);
     const assignedBudget = sampleBudget();
     setBudgetConstraints(assignedBudget);
-    
+
     // Image mode skips calibration (preference-only, no constraints)
     if (mode === 'image') {
       setPersonaGroup('preference');
@@ -1159,7 +1159,7 @@ const App: React.FC = () => {
         history_length: results.history?.length,
         has_evaluation: !!results.evaluation
       });
-      
+
       const response = await fetch(`${API_URL}/save-results`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1584,141 +1584,293 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="max-w-3xl w-full bg-white shadow-xl rounded-2xl overflow-hidden flex flex-col">
-          <div className={`p-6 md:p-8 text-white text-center ${mode === 'image' ? 'bg-gradient-to-r from-purple-600 to-indigo-600' : 'bg-gradient-to-r from-blue-600 to-indigo-600'}`}>
-            <h1 className="text-2xl md:text-3xl font-bold">{mode === 'image' ? 'Image Generation Study' : 'LLM Matchmaking Study'}</h1>
-            <p className="opacity-90">{mode === 'image' ? 'Find Your Ideal Image Model' : 'Find Your Dream Model'}</p>
+          <div
+            className={`p-6 md:p-8 text-white text-center ${mode === 'image'
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600'
+                : 'bg-gradient-to-r from-blue-600 to-indigo-600'
+              }`}
+          >
+            <h1 className="text-2xl md:text-3xl font-bold">
+              {mode === 'image' ? 'Image Generation Study' : 'LLM Matchmaking Study'}
+            </h1>
+            <p className="opacity-90">
+              {mode === 'image' ? 'Find Your Ideal Image Model' : 'Find Your Dream Model'}
+            </p>
             <p className="text-xs mt-2 opacity-75">IRB ID: STUDY00023557</p>
           </div>
 
+          {/* ✅ Replace the consent body with this conditional block */}
           <div className="p-6 md:p-8 overflow-y-auto max-h-[60vh] prose prose-sm max-w-none text-gray-700">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <p className="font-semibold text-blue-800 mb-1">🎯 Goal of This Study</p>
-              <p className="text-blue-700 text-sm">
-                Help us compare two model-matching systems. Your job is to choose which answers you prefer (considering quality + cost)
-                so we can see which system learns your preferences better.
-              </p>
-            </div>
+            {mode === 'image' ? (
+              <>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <p className="font-semibold text-blue-800 mb-1">🎯 Goal of This Study</p>
+                  <p className="text-blue-700 text-sm">
+                    Help us compare two model-matching systems. Your job is to choose which generated images you prefer (considering
+                    quality + cost) so we can see which system learns your preferences better.
+                  </p>
+                </div>
 
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-              <p className="font-semibold mb-1">TL;DR</p>
-              <p className="text-sm m-0">
-                Ask a question → each system shows a <strong>duel (2 answers)</strong> → pick a winner in <strong>System A</strong> and in{" "}
-                <strong>System B</strong> → optional “cheaper / smarter / longer context” feedback → repeat → then play & rate.
-              </p>
-            </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+                  <p className="font-semibold mb-1">TL;DR</p>
+                  <p className="text-sm m-0">
+                    Describe an image you want → each system shows a <strong>duel (2 images)</strong> → pick a winner in{' '}
+                    <strong>System A</strong> and in <strong>System B</strong> → optional “cheaper / more realistic / more creative”
+                    feedback → repeat → then play & rate.
+                  </p>
+                </div>
 
-            <h3 className="text-lg font-semibold mt-2">What you’ll see</h3>
-            <ul className="ml-5 list-disc">
-              <li>
-                Two panels: <strong>System A</strong> and <strong>System B</strong>.
-              </li>
-              <li>
-                In <strong>each</strong> system, you will see <strong>two candidate outputs</strong> for the same query.
-              </li>
-              <li>
-                Costs are tracked <strong>separately</strong> for System A vs System B (you’ll see how much you spent in each).
-              </li>
-              <li>
-                Model names are hidden, but you may see metadata (e.g., ratings, input/output costs). The systems choose among{" "}
-                <strong>25 OpenAI models</strong>.
-              </li>
-            </ul>
-
-            {/* Constraint-based (Traditional group) note */}
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mt-4">
-              <p className="font-semibold text-emerald-900 mb-1">✅ If you were assigned constraints (Traditional group)</p>
-              <p className="text-emerald-800 text-sm m-0">
-                You may see a small list of constraints (e.g., “input price ≤ $2/1M”, “reasoning required”, “intelligence ≥ 4”).
-                In this mode, treat constraints as <strong>requirements</strong>.
-              </p>
-              <ul className="ml-5 list-disc text-sm text-emerald-800 mt-2">
-                <li>
-                  When picking winners in each duel, <strong>prefer answers that come from models satisfying the constraints</strong>.
-                </li>
-                <li>
-                  If <strong>both</strong> options satisfy constraints, choose based on <strong>quality + cost</strong> as usual.
-                </li>
-                <li>
-                  If <strong>neither</strong> satisfies constraints, pick the option that seems <strong>closest</strong> (and you can use feedback like “I want reasoning model”).
-                </li>
-              </ul>
-            </div>
-
-
-            <h3 className="text-lg font-semibold mt-4">What you do each round (the exact loop)</h3>
-            <ol className="ml-5 list-decimal">
-              <li>
-                <strong>Enter a query</strong> (anything realistic: explain, write, debug, brainstorm, etc.).
-              </li>
-              <li>
-                <strong>Read the duels</strong>:
-                <ul className="ml-5 list-disc mt-1">
-                  <li>System A shows Answer A1 vs Answer A2</li>
-                  <li>System B shows Answer B1 vs Answer B2</li>
+                <h3 className="text-lg font-semibold mt-2">What you’ll see</h3>
+                <ul className="ml-5 list-disc">
+                  <li>
+                    Two panels: <strong>System A</strong> and <strong>System B</strong>.
+                  </li>
+                  <li>
+                    In <strong>each</strong> system, you will see <strong>two candidate images</strong> for the same prompt.
+                  </li>
+                  <li>
+                    Costs are tracked <strong>separately</strong> for System A vs System B (you’ll see how much you spent in each).
+                  </li>
+                  <li>
+                    Model names are hidden, but you may see metadata (e.g., ratings, estimated costs). The systems choose among{' '}
+                    <strong>12 text-to-image models</strong> from <strong>Google</strong> and <strong>OpenAI</strong>.
+                  </li>
                 </ul>
-              </li>
-              <li>
-                <strong>Pick winners (two choices every round)</strong>:
-                <ul className="ml-5 list-disc mt-1">
-                  <li>Choose the winner in <strong>System A</strong></li>
-                  <li>Choose the winner in <strong>System B</strong></li>
+
+                {/* Constraint-based (Traditional group) note */}
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mt-4">
+                  <p className="font-semibold text-emerald-900 mb-1">✅ If you were assigned constraints (Traditional group)</p>
+                  <p className="text-emerald-800 text-sm m-0">
+                    You may see a small list of constraints (e.g., “price ≤ $X/image”, “photorealism required”, “higher fidelity
+                    required”, “safe content only”). In this mode, treat constraints as <strong>requirements</strong>.
+                  </p>
+                  <ul className="ml-5 list-disc text-sm text-emerald-800 mt-2">
+                    <li>
+                      When picking winners in each duel, <strong>prefer images that come from models satisfying the constraints</strong>.
+                    </li>
+                    <li>
+                      If <strong>both</strong> options satisfy constraints, choose based on <strong>quality + cost</strong> as usual.
+                    </li>
+                    <li>
+                      If <strong>neither</strong> satisfies constraints, pick the option that seems <strong>closest</strong> (and you can
+                      use feedback like “I want cheaper” or “I want more realistic images”).
+                    </li>
+                  </ul>
+                </div>
+
+                <h3 className="text-lg font-semibold mt-4">What you do each round (the exact loop)</h3>
+                <ol className="ml-5 list-decimal">
+                  <li>
+                    <strong>Enter an image prompt</strong> (anything realistic: photorealistic, illustration, logo idea, product mock,
+                    scene description, etc.).
+                  </li>
+                  <li>
+                    <strong>Read the duels</strong>:
+                    <ul className="ml-5 list-disc mt-1">
+                      <li>System A shows Image A1 vs Image A2</li>
+                      <li>System B shows Image B1 vs Image B2</li>
+                    </ul>
+                  </li>
+                  <li>
+                    <strong>Pick winners (two choices every round)</strong>:
+                    <ul className="ml-5 list-disc mt-1">
+                      <li>Choose the winner in <strong>System A</strong></li>
+                      <li>Choose the winner in <strong>System B</strong></li>
+                    </ul>
+                  </li>
+                  <li>
+                    <strong>(Optional) Give language feedback</strong> to guide what you want next (examples:{' '}
+                    <em>“cheaper model”</em>, <em>“more realistic”</em>, <em>“more creative”</em>, <em>“better text rendering”</em>). This
+                    is optional and should reflect your preference, not “correctness.”
+                  </li>
+                  <li>
+                    <strong>Repeat</strong> until you run out of rounds or you feel satisfied and choose to stop early.
+                  </li>
+                </ol>
+
+                <h3 className="text-lg font-semibold mt-4">How to compare (what “better” means)</h3>
+                <p className="text-sm">Choose based on what you personally value. Most participants weigh:</p>
+                <ul className="ml-5 list-disc">
+                  <li>
+                    <strong>Image quality</strong> (visual appeal, sharpness, coherence)
+                  </li>
+                  <li>
+                    <strong>Prompt fit</strong> (does it match what you asked for?)
+                  </li>
+                  <li>
+                    <strong>Style fit</strong> (realistic vs stylized, composition, vibe)
+                  </li>
+                  <li>
+                    <strong>Cost</strong> (is the extra cost worth it?)
+                  </li>
                 </ul>
-              </li>
-              <li>
-                <strong>(Optional) Give language feedback</strong> to guide what you want next (examples:{" "}
-                <em>“cheaper model”</em>, <em>“stronger reasoning”</em>). This is optional
-                and should reflect your preference, not “correctness.”
-              </li>
-              <li>
-                <strong>Repeat</strong> until you run out of rounds or you feel satisfied and choose to stop early.
-              </li>
-            </ol>
+                <p className="text-sm">It’s okay if your preferences change as you see more outputs — just choose what you prefer in the moment.</p>
 
-            <h3 className="text-lg font-semibold mt-4">How to compare (what “better” means)</h3>
-            <p className="text-sm">
-              Choose based on what you personally value. Most participants weigh:
-            </p>
-            <ul className="ml-5 list-disc">
-              <li><strong>Quality</strong> (helpfulness, correctness, clarity)</li>
-              <li><strong>Cost</strong> (is the extra cost worth it?)</li>
-              <li><strong>Style fit</strong> (detail level, tone, structure)</li>
-            </ul>
-            <p className="text-sm">
-              It’s okay if your preferences change as you see more outputs — just choose what you prefer in the moment.
-            </p>
+                <h3 className="text-lg font-semibold mt-4">After drafting: play & rate</h3>
+                <p className="text-sm">
+                  After the drafting/matching phase, you can freely “play” with the final chosen model from each system (up to{' '}
+                  <strong>10 rounds per system</strong>), then rate each system on:
+                </p>
+                <ul className="ml-5 list-disc">
+                  <li>Overall image quality</li>
+                  <li>Budget compliance</li>
+                </ul>
 
-            <h3 className="text-lg font-semibold mt-4">After drafting: play & rate</h3>
-            <p className="text-sm">
-              After the drafting/matching phase, you can freely “play” with the final chosen model from each system (up to{" "}
-              <strong>10 rounds per system</strong>), then rate each system on:
-            </p>
-            <ul className="ml-5 list-disc">
-              <li>Overall output quality</li>
-              <li>Budget compliance</li>
-            </ul>
+                <h3 className="text-lg font-semibold mt-4">Important notes</h3>
+                <ul className="ml-5 list-disc text-sm">
+                  <li>
+                    Please <strong>do not try to guess</strong> which system/model produced which image. Focus on your preference.
+                  </li>
+                  <li>Take your time to view both duels before choosing winners.</li>
+                  <li>Your responses are anonymous and used only for research purposes.</li>
+                </ul>
 
-            <h3 className="text-lg font-semibold mt-4">Important notes</h3>
-            <ul className="ml-5 list-disc text-sm">
-              <li>
-                Please <strong>do not try to guess</strong> which system/model produced which output. Focus on your preference.
-              </li>
-              <li>Take your time to read both duels before choosing winners.</li>
-              <li>Your responses are anonymous and used only for research purposes.</li>
-            </ul>
+                <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 mt-4">
+                  <p className="font-semibold text-amber-800 mb-1">⚠️ Privacy Notice</p>
+                  <p className="text-amber-700 text-sm">
+                    Please <strong>do not enter any personal or sensitive information</strong> in your prompts. Avoid names, addresses,
+                    phone numbers, or identifying details. Prompts and generated images will be collected for research.
+                  </p>
+                </div>
 
-            <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 mt-4">
-              <p className="font-semibold text-amber-800 mb-1">⚠️ Privacy Notice</p>
-              <p className="text-amber-700 text-sm">
-                Please <strong>do not enter any personal or sensitive information</strong> in your prompts. Avoid names, addresses,
-                phone numbers, or identifying details. Prompts and model responses will be collected for research.
-              </p>
-            </div>
+                <p className="text-xs text-gray-500 mt-4 border-t pt-4">
+                  Questions? Contact: xinyua11@asu.edu, snguye88@asu.edu, ransalu@asu.edu
+                  <br />
+                  ASU IRB: (480) 965-6788
+                </p>
+              </>
+            ) : (
+              <>
+                {/* ✅ LLM version kept EXACTLY the same as your previous content */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <p className="font-semibold text-blue-800 mb-1">🎯 Goal of This Study</p>
+                  <p className="text-blue-700 text-sm">
+                    Help us compare two model-matching systems. Your job is to choose which answers you prefer (considering quality + cost)
+                    so we can see which system learns your preferences better.
+                  </p>
+                </div>
 
-            <p className="text-xs text-gray-500 mt-4 border-t pt-4">
-              Questions? Contact: xinyua11@asu.edu, snguye88@asu.edu, ransalu@asu.edu
-              <br />
-              ASU IRB: (480) 965-6788
-            </p>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+                  <p className="font-semibold mb-1">TL;DR</p>
+                  <p className="text-sm m-0">
+                    Ask a question → each system shows a <strong>duel (2 answers)</strong> → pick a winner in <strong>System A</strong> and in{" "}
+                    <strong>System B</strong> → optional “cheaper / smarter / longer context” feedback → repeat → then play & rate.
+                  </p>
+                </div>
+
+                <h3 className="text-lg font-semibold mt-2">What you’ll see</h3>
+                <ul className="ml-5 list-disc">
+                  <li>
+                    Two panels: <strong>System A</strong> and <strong>System B</strong>.
+                  </li>
+                  <li>
+                    In <strong>each</strong> system, you will see <strong>two candidate outputs</strong> for the same query.
+                  </li>
+                  <li>
+                    Costs are tracked <strong>separately</strong> for System A vs System B (you’ll see how much you spent in each).
+                  </li>
+                  <li>
+                    Model names are hidden, but you may see metadata (e.g., ratings, input/output costs). The systems choose among{" "}
+                    <strong>25 OpenAI models</strong>.
+                  </li>
+                </ul>
+
+                {/* Constraint-based (Traditional group) note */}
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mt-4">
+                  <p className="font-semibold text-emerald-900 mb-1">✅ If you were assigned constraints (Traditional group)</p>
+                  <p className="text-emerald-800 text-sm m-0">
+                    You may see a small list of constraints (e.g., “input price ≤ $2/1M”, “reasoning required”, “intelligence ≥ 4”).
+                    In this mode, treat constraints as <strong>requirements</strong>.
+                  </p>
+                  <ul className="ml-5 list-disc text-sm text-emerald-800 mt-2">
+                    <li>
+                      When picking winners in each duel, <strong>prefer answers that come from models satisfying the constraints</strong>.
+                    </li>
+                    <li>
+                      If <strong>both</strong> options satisfy constraints, choose based on <strong>quality + cost</strong> as usual.
+                    </li>
+                    <li>
+                      If <strong>neither</strong> satisfies constraints, pick the option that seems <strong>closest</strong> (and you can use feedback like “I want reasoning model”).
+                    </li>
+                  </ul>
+                </div>
+
+                <h3 className="text-lg font-semibold mt-4">What you do each round (the exact loop)</h3>
+                <ol className="ml-5 list-decimal">
+                  <li>
+                    <strong>Enter a query</strong> (anything realistic: explain, write, debug, brainstorm, etc.).
+                  </li>
+                  <li>
+                    <strong>Read the duels</strong>:
+                    <ul className="ml-5 list-disc mt-1">
+                      <li>System A shows Answer A1 vs Answer A2</li>
+                      <li>System B shows Answer B1 vs Answer B2</li>
+                    </ul>
+                  </li>
+                  <li>
+                    <strong>Pick winners (two choices every round)</strong>:
+                    <ul className="ml-5 list-disc mt-1">
+                      <li>Choose the winner in <strong>System A</strong></li>
+                      <li>Choose the winner in <strong>System B</strong></li>
+                    </ul>
+                  </li>
+                  <li>
+                    <strong>(Optional) Give language feedback</strong> to guide what you want next (examples:{" "}
+                    <em>“cheaper model”</em>, <em>“stronger reasoning”</em>). This is optional
+                    and should reflect your preference, not “correctness.”
+                  </li>
+                  <li>
+                    <strong>Repeat</strong> until you run out of rounds or you feel satisfied and choose to stop early.
+                  </li>
+                </ol>
+
+                <h3 className="text-lg font-semibold mt-4">How to compare (what “better” means)</h3>
+                <p className="text-sm">
+                  Choose based on what you personally value. Most participants weigh:
+                </p>
+                <ul className="ml-5 list-disc">
+                  <li><strong>Quality</strong> (helpfulness, correctness, clarity)</li>
+                  <li><strong>Cost</strong> (is the extra cost worth it?)</li>
+                  <li><strong>Style fit</strong> (detail level, tone, structure)</li>
+                </ul>
+                <p className="text-sm">
+                  It’s okay if your preferences change as you see more outputs — just choose what you prefer in the moment.
+                </p>
+
+                <h3 className="text-lg font-semibold mt-4">After drafting: play & rate</h3>
+                <p className="text-sm">
+                  After the drafting/matching phase, you can freely “play” with the final chosen model from each system (up to{" "}
+                  <strong>10 rounds per system</strong>), then rate each system on:
+                </p>
+                <ul className="ml-5 list-disc">
+                  <li>Overall output quality</li>
+                  <li>Budget compliance</li>
+                </ul>
+
+                <h3 className="text-lg font-semibold mt-4">Important notes</h3>
+                <ul className="ml-5 list-disc text-sm">
+                  <li>
+                    Please <strong>do not try to guess</strong> which system/model produced which output. Focus on your preference.
+                  </li>
+                  <li>Take your time to read both duels before choosing winners.</li>
+                  <li>Your responses are anonymous and used only for research purposes.</li>
+                </ul>
+
+                <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 mt-4">
+                  <p className="font-semibold text-amber-800 mb-1">⚠️ Privacy Notice</p>
+                  <p className="text-amber-700 text-sm">
+                    Please <strong>do not enter any personal or sensitive information</strong> in your prompts. Avoid names, addresses,
+                    phone numbers, or identifying details. Prompts and model responses will be collected for research.
+                  </p>
+                </div>
+
+                <p className="text-xs text-gray-500 mt-4 border-t pt-4">
+                  Questions? Contact: xinyua11@asu.edu, snguye88@asu.edu, ransalu@asu.edu
+                  <br />
+                  ASU IRB: (480) 965-6788
+                </p>
+              </>
+            )}
           </div>
 
           <div className="p-4 md:p-6 bg-gray-50 border-t flex flex-col items-center gap-4">
@@ -1734,10 +1886,9 @@ const App: React.FC = () => {
           </div>
         </div>
       </div>
-
-
     );
   }
+
 
   // CALIBRATION PHASE
   if (phase === 'calibration') {
@@ -1951,7 +2102,7 @@ const App: React.FC = () => {
                 <span><strong>Privacy:</strong> Do not enter personal information. Prompts and responses are collected for research.</span>
               </p>
             </div>
-            
+
             {/* Initial Preference Field */}
             <div className="mb-4 bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-lg border border-indigo-200 text-left">
               <div className="flex items-center gap-2 mb-2">
@@ -1961,7 +2112,7 @@ const App: React.FC = () => {
                 </label>
               </div>
               <p className="text-xs text-indigo-700 mb-3">
-                {mode === 'image' 
+                {mode === 'image'
                   ? 'Tell the system your preferences to help find the best image generation model for you. For example: "realistic photos", "artistic style", "anime illustrations", "high detail", etc.'
                   : 'Tell the system your preferences to help find the best model for you. For example: "a cheap model", "a friendly assistant", "technology-focused", "fast responses", etc.'
                 }
@@ -1969,7 +2120,7 @@ const App: React.FC = () => {
               <input
                 type="text"
                 className="w-full border border-indigo-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                placeholder={mode === 'image' 
+                placeholder={mode === 'image'
                   ? 'e.g., "I want realistic photos", "I prefer artistic illustrations", "Something with vibrant colors"'
                   : 'e.g., "I want a cheap model", "I prefer detailed explanations", "Something fast and concise"'
                 }
@@ -2142,11 +2293,10 @@ const App: React.FC = () => {
                     <button
                       onClick={handleSatisfied}
                       disabled={!cupidVote || !baselineVote}
-                      className={`px-4 py-2 rounded-lg font-medium transition text-sm ${
-                        cupidVote && baselineVote 
-                          ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                      className={`px-4 py-2 rounded-lg font-medium transition text-sm ${cupidVote && baselineVote
+                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
                           : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      }`}
+                        }`}
                       title={!cupidVote || !baselineVote ? 'Please select your preferred response from both systems first' : ''}
                     >
                       ✓ I'm Satisfied — End Drafting
