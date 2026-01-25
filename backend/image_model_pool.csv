@@ -1,0 +1,13 @@
+id,model-id, model
+1,openai:1@1,GPT Image 1
+2,openai:2@3,DallE 3
+3,openai:2@2,DallE 2
+4,openai:1@2,GPT Image 1 Mini
+5,openai:4@1,GPT Image 1.5
+6,google:2@3,Imagen 4.0 Fast
+7,google:2@1,Imagen 4.0 Preview
+8,google:2@2,Imagen 4.0 Ultra
+9,google:1@2,Imagen 3.0 Fast
+10,google:1@1,Imagen 3.0
+11,google:4@1,Gemini Flash Image 2.5 (Nano Banana)
+12,google:4@2,Nano Banana Pro
