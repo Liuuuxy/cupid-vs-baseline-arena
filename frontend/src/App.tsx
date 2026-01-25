@@ -250,7 +250,7 @@ const getModeConfig = (mode: ArenaMode) => {
       preferencePlaceholder: 'E.g., I need photorealistic product images...',
       expertSubjects: [], // Not used for image mode
       constraintColumns: [], // Not used for image mode
-      budgetRange: { minCost: 0.05, maxCost: 0.20 },
+      budgetRange: { minCost: 0.5, maxCost: 1 },
       ratingLabels: [
         { value: 1, label: "Very poor quality images", shortLabel: "Very Poor" },
         { value: 2, label: "Below average quality", shortLabel: "Poor" },
@@ -712,8 +712,8 @@ const App: React.FC = () => {
         <div
           onClick={() => setVote('left')}
           className={`cursor-pointer rounded-xl border-2 p-3 transition-all ${vote === 'left'
-              ? 'border-green-500 bg-green-50 ring-2 ring-green-300'
-              : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
+            ? 'border-green-500 bg-green-50 ring-2 ring-green-300'
+            : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
             }`}
         >
           <div className="flex justify-between items-center mb-2">
@@ -735,8 +735,8 @@ const App: React.FC = () => {
         <div
           onClick={() => setVote('right')}
           className={`cursor-pointer rounded-xl border-2 p-3 transition-all ${vote === 'right'
-              ? 'border-green-500 bg-green-50 ring-2 ring-green-300'
-              : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
+            ? 'border-green-500 bg-green-50 ring-2 ring-green-300'
+            : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
             }`}
         >
           <div className="flex justify-between items-center mb-2">
@@ -786,8 +786,8 @@ const App: React.FC = () => {
               key={r.value}
               onClick={() => setRating(r.value)}
               className={`flex-1 py-2 px-1 text-xs rounded-lg border transition-all ${rating === r.value
-                  ? 'bg-blue-500 text-white border-blue-500'
-                  : 'bg-white text-gray-600 border-gray-300 hover:border-blue-300'
+                ? 'bg-blue-500 text-white border-blue-500'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-blue-300'
                 }`}
             >
               {r.shortLabel}
@@ -804,8 +804,8 @@ const App: React.FC = () => {
               key={r.value}
               onClick={() => setBudgetRating(r.value)}
               className={`flex-1 py-2 px-1 text-xs rounded-lg border transition-all ${budgetRating === r.value
-                  ? 'bg-purple-500 text-white border-purple-500'
-                  : 'bg-white text-gray-600 border-gray-300 hover:border-purple-300'
+                ? 'bg-purple-500 text-white border-purple-500'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-purple-300'
                 }`}
               title={r.label}
             >
@@ -1000,8 +1000,8 @@ const App: React.FC = () => {
                       key={val}
                       onClick={() => setDemographics({ ...demographics, familiarity: val })}
                       className={`flex-1 py-2 rounded-lg border transition-all ${demographics.familiarity === val
-                          ? 'bg-blue-500 text-white border-blue-500'
-                          : 'bg-white text-gray-600 border-gray-300 hover:border-blue-300'
+                        ? 'bg-blue-500 text-white border-blue-500'
+                        : 'bg-white text-gray-600 border-gray-300 hover:border-blue-300'
                         }`}
                     >
                       {val}
@@ -1017,8 +1017,8 @@ const App: React.FC = () => {
                   <button
                     onClick={() => handlePersonaGroupSelect('traditional')}
                     className={`p-4 rounded-xl border-2 transition-all text-center ${personaGroup === 'traditional'
-                        ? 'border-purple-500 bg-purple-50'
-                        : 'border-gray-200 hover:border-purple-300'
+                      ? 'border-purple-500 bg-purple-50'
+                      : 'border-gray-200 hover:border-purple-300'
                       }`}
                   >
                     <Target className="mx-auto mb-2 text-purple-500" size={24} />
@@ -1027,8 +1027,8 @@ const App: React.FC = () => {
                   <button
                     onClick={() => handlePersonaGroupSelect('expert')}
                     className={`p-4 rounded-xl border-2 transition-all text-center ${personaGroup === 'expert'
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-blue-300'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-blue-300'
                       }`}
                   >
                     <BookOpen className="mx-auto mb-2 text-blue-500" size={24} />
@@ -1037,8 +1037,8 @@ const App: React.FC = () => {
                   <button
                     onClick={() => handlePersonaGroupSelect('preference')}
                     className={`p-4 rounded-xl border-2 transition-all text-center ${personaGroup === 'preference'
-                        ? 'border-indigo-500 bg-indigo-50'
-                        : 'border-gray-200 hover:border-indigo-300'
+                      ? 'border-indigo-500 bg-indigo-50'
+                      : 'border-gray-200 hover:border-indigo-300'
                       }`}
                   >
                     <ThumbsUp className="mx-auto mb-2 text-indigo-500" size={24} />
@@ -1057,8 +1057,8 @@ const App: React.FC = () => {
                         key={subject.id}
                         onClick={() => setSelectedExpertSubject(subject.id)}
                         className={`p-3 rounded-xl border-2 transition-all flex items-center gap-3 ${selectedExpertSubject === subject.id
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200 hover:border-blue-300'
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-blue-300'
                           }`}
                       >
                         {subject.icon}
