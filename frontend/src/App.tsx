@@ -12,7 +12,7 @@ import remarkGfm from 'remark-gfm';
 import 'katex/dist/katex.min.css';
 
 // --- API CONFIGURATION ---
-const API_URL = 'https://your-api-url.onrender.com';  // Update this
+const API_URL = 'https://cupid-vs-baseline-arena.onrender.com';  // Update this
 const SURVEY_URL = "https://your-survey-url.com";
 
 // --- MODE TYPE ---
@@ -71,9 +71,9 @@ const Markdown: React.FC<{ content: string; className?: string }> = ({ content, 
 };
 
 // --- IMAGE DISPLAY COMPONENT ---
-const ImageDisplay: React.FC<{ 
-  imageUrl: string; 
-  alt: string; 
+const ImageDisplay: React.FC<{
+  imageUrl: string;
+  alt: string;
   className?: string;
   loading?: boolean;
 }> = ({ imageUrl, alt, className = '', loading = false }) => {
@@ -607,7 +607,7 @@ const App: React.FC = () => {
     setSessionId(newSessionId);
     const assignedBudget = sampleBudget();
     setBudgetConstraints(assignedBudget);
-    
+
     // Image mode skips calibration (no persona groups/constraints)
     if (mode === 'image') {
       setPersonaGroup('preference');
@@ -662,9 +662,9 @@ const App: React.FC = () => {
 
   const handleSubmitRound = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cupidVote || !baselineVote) { 
-      setError(`Please select your preferred ${mode === 'image' ? 'image' : 'response'} from both systems.`); 
-      return; 
+    if (!cupidVote || !baselineVote) {
+      setError(`Please select your preferred ${mode === 'image' ? 'image' : 'response'} from both systems.`);
+      return;
     }
 
     const systemACost = (arenaState?.cupid_cost || 0) + (arenaState?.routing_cost || 0);
@@ -711,11 +711,10 @@ const App: React.FC = () => {
         {/* Left option */}
         <div
           onClick={() => setVote('left')}
-          className={`cursor-pointer rounded-xl border-2 p-3 transition-all ${
-            vote === 'left'
+          className={`cursor-pointer rounded-xl border-2 p-3 transition-all ${vote === 'left'
               ? 'border-green-500 bg-green-50 ring-2 ring-green-300'
               : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
-          }`}
+            }`}
         >
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium text-gray-600">Option A</span>
@@ -735,11 +734,10 @@ const App: React.FC = () => {
         {/* Right option */}
         <div
           onClick={() => setVote('right')}
-          className={`cursor-pointer rounded-xl border-2 p-3 transition-all ${
-            vote === 'right'
+          className={`cursor-pointer rounded-xl border-2 p-3 transition-all ${vote === 'right'
               ? 'border-green-500 bg-green-50 ring-2 ring-green-300'
               : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
-          }`}
+            }`}
         >
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium text-gray-600">Option B</span>
@@ -770,7 +768,7 @@ const App: React.FC = () => {
   ) => (
     <div className="bg-white border rounded-2xl p-6 shadow-sm">
       <h3 className="text-lg font-bold text-gray-800 mb-4">{systemLabel}</h3>
-      
+
       <div className="mb-4 p-3 bg-gray-50 rounded-lg">
         <div className="flex justify-between text-sm">
           <span className="text-gray-600">Total Cost:</span>
@@ -787,11 +785,10 @@ const App: React.FC = () => {
             <button
               key={r.value}
               onClick={() => setRating(r.value)}
-              className={`flex-1 py-2 px-1 text-xs rounded-lg border transition-all ${
-                rating === r.value
+              className={`flex-1 py-2 px-1 text-xs rounded-lg border transition-all ${rating === r.value
                   ? 'bg-blue-500 text-white border-blue-500'
                   : 'bg-white text-gray-600 border-gray-300 hover:border-blue-300'
-              }`}
+                }`}
             >
               {r.shortLabel}
             </button>
@@ -806,11 +803,10 @@ const App: React.FC = () => {
             <button
               key={r.value}
               onClick={() => setBudgetRating(r.value)}
-              className={`flex-1 py-2 px-1 text-xs rounded-lg border transition-all ${
-                budgetRating === r.value
+              className={`flex-1 py-2 px-1 text-xs rounded-lg border transition-all ${budgetRating === r.value
                   ? 'bg-purple-500 text-white border-purple-500'
                   : 'bg-white text-gray-600 border-gray-300 hover:border-purple-300'
-              }`}
+                }`}
               title={r.label}
             >
               {r.value}
@@ -935,7 +931,7 @@ const App: React.FC = () => {
   // CALIBRATION PHASE (TEXT MODE ONLY)
   if (phase === 'calibration') {
     const majors = MAJORS_TEXT;
-    
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-4">
         <div className="max-w-3xl mx-auto">
@@ -944,7 +940,7 @@ const App: React.FC = () => {
               <h1 className="text-2xl font-bold">Setup Your Profile</h1>
               <p className="mt-2 opacity-90">Help us understand your background</p>
             </div>
-            
+
             <div className="p-6 space-y-6">
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
@@ -1003,11 +999,10 @@ const App: React.FC = () => {
                     <button
                       key={val}
                       onClick={() => setDemographics({ ...demographics, familiarity: val })}
-                      className={`flex-1 py-2 rounded-lg border transition-all ${
-                        demographics.familiarity === val
+                      className={`flex-1 py-2 rounded-lg border transition-all ${demographics.familiarity === val
                           ? 'bg-blue-500 text-white border-blue-500'
                           : 'bg-white text-gray-600 border-gray-300 hover:border-blue-300'
-                      }`}
+                        }`}
                     >
                       {val}
                     </button>
@@ -1021,33 +1016,30 @@ const App: React.FC = () => {
                 <div className="grid grid-cols-3 gap-3">
                   <button
                     onClick={() => handlePersonaGroupSelect('traditional')}
-                    className={`p-4 rounded-xl border-2 transition-all text-center ${
-                      personaGroup === 'traditional'
+                    className={`p-4 rounded-xl border-2 transition-all text-center ${personaGroup === 'traditional'
                         ? 'border-purple-500 bg-purple-50'
                         : 'border-gray-200 hover:border-purple-300'
-                    }`}
+                      }`}
                   >
                     <Target className="mx-auto mb-2 text-purple-500" size={24} />
                     <div className="font-medium text-sm">Requirements</div>
                   </button>
                   <button
                     onClick={() => handlePersonaGroupSelect('expert')}
-                    className={`p-4 rounded-xl border-2 transition-all text-center ${
-                      personaGroup === 'expert'
+                    className={`p-4 rounded-xl border-2 transition-all text-center ${personaGroup === 'expert'
                         ? 'border-blue-500 bg-blue-50'
                         : 'border-gray-200 hover:border-blue-300'
-                    }`}
+                      }`}
                   >
                     <BookOpen className="mx-auto mb-2 text-blue-500" size={24} />
                     <div className="font-medium text-sm">Expert</div>
                   </button>
                   <button
                     onClick={() => handlePersonaGroupSelect('preference')}
-                    className={`p-4 rounded-xl border-2 transition-all text-center ${
-                      personaGroup === 'preference'
+                    className={`p-4 rounded-xl border-2 transition-all text-center ${personaGroup === 'preference'
                         ? 'border-indigo-500 bg-indigo-50'
                         : 'border-gray-200 hover:border-indigo-300'
-                    }`}
+                      }`}
                   >
                     <ThumbsUp className="mx-auto mb-2 text-indigo-500" size={24} />
                     <div className="font-medium text-sm">Preference</div>
@@ -1064,11 +1056,10 @@ const App: React.FC = () => {
                       <button
                         key={subject.id}
                         onClick={() => setSelectedExpertSubject(subject.id)}
-                        className={`p-3 rounded-xl border-2 transition-all flex items-center gap-3 ${
-                          selectedExpertSubject === subject.id
+                        className={`p-3 rounded-xl border-2 transition-all flex items-center gap-3 ${selectedExpertSubject === subject.id
                             ? 'border-blue-500 bg-blue-50'
                             : 'border-gray-200 hover:border-blue-300'
-                        }`}
+                          }`}
                       >
                         {subject.icon}
                         <span className="font-medium text-sm">{subject.label}</span>
@@ -1165,7 +1156,7 @@ const App: React.FC = () => {
           {init ? (
             <div className="bg-white rounded-2xl shadow-lg p-6">
               <h2 className="text-lg font-bold text-gray-800 mb-4">Start by entering your first prompt</h2>
-              
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   {config.preferenceLabel}
@@ -1378,7 +1369,7 @@ const App: React.FC = () => {
                   <p className="text-gray-800 font-medium">{round.prompt}</p>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="border rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-3">
@@ -1512,7 +1503,7 @@ const App: React.FC = () => {
                   Submit & Finish <ArrowRight className="ml-2" size={18} />
                 </button>
               </div>
-              
+
               {!hasTestedModels && (
                 <p className="text-center text-amber-600 text-sm mt-4">
                   ⚠️ Please test both models at least once before rating.
