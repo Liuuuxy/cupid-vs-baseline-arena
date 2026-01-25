@@ -31,6 +31,14 @@ except ImportError:
     DATABASE_AVAILABLE = False
     print("Warning: databases package not available.")
 
+# Runware SDK import
+try:
+    from runware import Runware, IImageInference
+    RUNWARE_SDK_AVAILABLE = True
+except ImportError:
+    RUNWARE_SDK_AVAILABLE = False
+    print("Warning: runware SDK not available. Will use REST API fallback.")
+
 # Conditional imports for CUPID GP model
 try:
     from botorch.fit import fit_gpytorch_model
@@ -60,24 +68,32 @@ OPENROUTER_HEADERS = {
 }
 
 # Runware for text-to-image generation
-RUNWARE_URL = "https://api.runware.ai/v1"
 RUNWARE_API_KEY = os.environ.get("RUNWARE_API_KEY", "")
-RUNWARE_HEADERS = {
-    "Authorization": f"Bearer {RUNWARE_API_KEY}" if RUNWARE_API_KEY else "",
-    "Content-Type": "application/json",
-}
 
 # Model pool paths
 MODEL_POOL_PATH = os.environ.get("MODEL_POOL_PATH", "./model-pool.csv")
 MODEL_POOL_LOCAL = os.environ.get("MODEL_POOL_LOCAL", "./model-pool.csv")
 MODEL_POOL_IMAGE_PATH = os.environ.get("MODEL_POOL_IMAGE_PATH", "./image_model_pool.csv")
 
-# Database configuration
+# Database configuration - LLM results database
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 database = Database(DATABASE_URL) if DATABASE_URL and DATABASE_AVAILABLE else None
+
+# Database configuration - Image results database (separate)
+IMAGE_DATABASE_URL = os.environ.get("IMAGE_DATABASE_URL", "")
+if not IMAGE_DATABASE_URL and DATABASE_URL:
+    # Default to same server but different database or table prefix
+    IMAGE_DATABASE_URL = DATABASE_URL
+if IMAGE_DATABASE_URL.startswith("postgres://"):
+    IMAGE_DATABASE_URL = IMAGE_DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+image_database = Database(IMAGE_DATABASE_URL) if IMAGE_DATABASE_URL and DATABASE_AVAILABLE else None
+
+# Global Runware client instance
+runware_client: Optional[Runware] = None
 
 
 # ================== Load Model Pools ==================
@@ -183,6 +199,104 @@ def _id_to_index(model_id: int, mode: ArenaMode = ArenaMode.TEXT) -> int:
     return idx
 
 
+# ================== Database Functions for Image Results ==================
+async def init_image_database():
+    """Initialize the image results database table."""
+    if not image_database:
+        return
+    
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS image_results (
+        id SERIAL PRIMARY KEY,
+        task_uuid VARCHAR(255) UNIQUE,
+        session_id VARCHAR(255),
+        model_id INTEGER,
+        model_name VARCHAR(255),
+        display_name VARCHAR(255),
+        prompt TEXT,
+        image_url TEXT,
+        width INTEGER,
+        height INTEGER,
+        seed BIGINT,
+        cost DECIMAL(10, 6),
+        algorithm VARCHAR(50),
+        round_number INTEGER,
+        position VARCHAR(10),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        metadata JSONB
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_image_results_session ON image_results(session_id);
+    CREATE INDEX IF NOT EXISTS idx_image_results_model ON image_results(model_id);
+    CREATE INDEX IF NOT EXISTS idx_image_results_created ON image_results(created_at);
+    """
+    
+    try:
+        await image_database.execute(create_table_query)
+        print("Image results database table initialized successfully.")
+    except Exception as e:
+        print(f"Warning: Could not create image_results table: {e}")
+
+
+async def save_image_result(
+    task_uuid: str,
+    session_id: Optional[str],
+    model_id: int,
+    model_name: str,
+    display_name: str,
+    prompt: str,
+    image_url: str,
+    width: int,
+    height: int,
+    seed: int,
+    cost: float,
+    algorithm: Optional[str] = None,
+    round_number: Optional[int] = None,
+    position: Optional[str] = None,
+    metadata: Optional[Dict] = None
+):
+    """Save image generation result to the image database."""
+    if not image_database:
+        return
+    
+    insert_query = """
+    INSERT INTO image_results 
+    (task_uuid, session_id, model_id, model_name, display_name, prompt, image_url, 
+     width, height, seed, cost, algorithm, round_number, position, metadata)
+    VALUES 
+    (:task_uuid, :session_id, :model_id, :model_name, :display_name, :prompt, :image_url,
+     :width, :height, :seed, :cost, :algorithm, :round_number, :position, :metadata)
+    ON CONFLICT (task_uuid) DO UPDATE SET
+        image_url = EXCLUDED.image_url,
+        cost = EXCLUDED.cost,
+        metadata = EXCLUDED.metadata
+    """
+    
+    try:
+        await image_database.execute(
+            insert_query,
+            {
+                "task_uuid": task_uuid,
+                "session_id": session_id,
+                "model_id": model_id,
+                "model_name": model_name,
+                "display_name": display_name,
+                "prompt": prompt,
+                "image_url": image_url,
+                "width": width,
+                "height": height,
+                "seed": seed,
+                "cost": cost,
+                "algorithm": algorithm,
+                "round_number": round_number,
+                "position": position,
+                "metadata": json.dumps(metadata) if metadata else None,
+            }
+        )
+    except Exception as e:
+        print(f"Warning: Could not save image result to database: {e}")
+
+
 # ================== API Call Functions ==================
 def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
     """Generate LLM text response via OpenRouter (original)."""
@@ -233,22 +347,109 @@ def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
         return {"text": f"[Error: {str(e)}]", "cost": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "error": str(e)}
 
 
-def call_runware(prompt: str, model_id: int, width: int = 1024, height: int = 1024) -> Dict[str, Any]:
-    """Generate image via Runware API."""
+async def call_runware(
+    prompt: str, 
+    model_id: int, 
+    width: int = 1024, 
+    height: int = 1024,
+    session_id: Optional[str] = None,
+    algorithm: Optional[str] = None,
+    round_number: Optional[int] = None,
+    position: Optional[str] = None
+) -> Dict[str, Any]:
+    """Generate image via Runware SDK (WebSocket-based)."""
+    global runware_client
+    
     model_name = _model_name_from_id(model_id, ArenaMode.IMAGE)
     display_name = _model_display_name_from_id(model_id, ArenaMode.IMAGE)
     task_uuid = str(uuid.uuid4())
     price_per_image = 0.002
 
+    # Mock response if no API key
     if not RUNWARE_API_KEY:
-        return {
+        result = {
             "imageUrl": f"https://via.placeholder.com/{width}x{height}.png?text={display_name.replace(' ', '+')}",
             "cost": price_per_image,
             "seed": 12345678,
             "taskUUID": task_uuid,
         }
+        # Save mock result to database
+        await save_image_result(
+            task_uuid=task_uuid,
+            session_id=session_id,
+            model_id=model_id,
+            model_name=model_name,
+            display_name=display_name,
+            prompt=prompt,
+            image_url=result["imageUrl"],
+            width=width,
+            height=height,
+            seed=result["seed"],
+            cost=result["cost"],
+            algorithm=algorithm,
+            round_number=round_number,
+            position=position,
+            metadata={"mock": True}
+        )
+        return result
 
-    # Runware API expects array of task objects
+    # Use Runware SDK if available
+    if RUNWARE_SDK_AVAILABLE and runware_client:
+        try:
+            request = IImageInference(
+                positivePrompt=prompt,
+                model=model_name,
+                width=width,
+                height=height,
+                numberResults=1,
+                outputFormat="JPG",
+            )
+            
+            images = await runware_client.imageInference(requestImage=request)
+            
+            if images and len(images) > 0:
+                image = images[0]
+                result = {
+                    "imageUrl": image.imageURL,
+                    "cost": float(getattr(image, 'cost', price_per_image) or price_per_image),
+                    "seed": int(getattr(image, 'seed', 0) or 0),
+                    "taskUUID": getattr(image, 'taskUUID', task_uuid) or task_uuid,
+                }
+                
+                # Save result to image database
+                await save_image_result(
+                    task_uuid=result["taskUUID"],
+                    session_id=session_id,
+                    model_id=model_id,
+                    model_name=model_name,
+                    display_name=display_name,
+                    prompt=prompt,
+                    image_url=result["imageUrl"],
+                    width=width,
+                    height=height,
+                    seed=result["seed"],
+                    cost=result["cost"],
+                    algorithm=algorithm,
+                    round_number=round_number,
+                    position=position,
+                    metadata={"sdk": "runware-python", "model": model_name}
+                )
+                
+                return result
+            else:
+                return {"imageUrl": "", "cost": 0.0, "seed": 0, "taskUUID": task_uuid, "error": "No image returned"}
+                
+        except Exception as e:
+            print(f"Runware SDK error: {e}")
+            # Fall through to REST API fallback
+    
+    # REST API fallback
+    RUNWARE_URL = "https://api.runware.ai/v1"
+    RUNWARE_HEADERS = {
+        "Authorization": f"Bearer {RUNWARE_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    
     payload = [{
         "taskType": "imageInference",
         "taskUUID": task_uuid,
@@ -272,15 +473,35 @@ def call_runware(prompt: str, model_id: int, width: int = 1024, height: int = 10
         response.raise_for_status()
         data = response.json()
         
-        # Response format: {"data": [{"taskType": "imageInference", "imageURL": "...", "cost": 0.001, ...}]}
         if "data" in data and len(data["data"]) > 0:
-            result = data["data"][0]
-            return {
-                "imageUrl": result.get("imageURL", ""),
-                "cost": float(result.get("cost", price_per_image) or price_per_image),
-                "seed": result.get("seed", 0),
+            api_result = data["data"][0]
+            result = {
+                "imageUrl": api_result.get("imageURL", ""),
+                "cost": float(api_result.get("cost", price_per_image) or price_per_image),
+                "seed": api_result.get("seed", 0),
                 "taskUUID": task_uuid,
             }
+            
+            # Save result to image database
+            await save_image_result(
+                task_uuid=task_uuid,
+                session_id=session_id,
+                model_id=model_id,
+                model_name=model_name,
+                display_name=display_name,
+                prompt=prompt,
+                image_url=result["imageUrl"],
+                width=width,
+                height=height,
+                seed=result["seed"],
+                cost=result["cost"],
+                algorithm=algorithm,
+                round_number=round_number,
+                position=position,
+                metadata={"sdk": "rest-api", "model": model_name}
+            )
+            
+            return result
         else:
             errors = data.get("errors", [])
             error_msg = errors[0].get("message", "Unknown error") if errors else "No image returned"
@@ -719,14 +940,44 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
+    global runware_client
+    
+    # Connect to LLM database
     if database:
         await database.connect()
+    
+    # Connect to image database and initialize table
+    if image_database:
+        await image_database.connect()
+        await init_image_database()
+    
+    # Initialize Runware SDK client
+    if RUNWARE_SDK_AVAILABLE and RUNWARE_API_KEY:
+        try:
+            runware_client = Runware(api_key=RUNWARE_API_KEY)
+            await runware_client.connect()
+            print("Runware SDK connected successfully.")
+        except Exception as e:
+            print(f"Warning: Could not connect Runware SDK: {e}")
+            runware_client = None
 
 
 @app.on_event("shutdown")
 async def shutdown():
+    global runware_client
+    
     if database:
         await database.disconnect()
+    
+    if image_database:
+        await image_database.disconnect()
+    
+    # Disconnect Runware client
+    if runware_client:
+        try:
+            await runware_client.disconnect()
+        except Exception as e:
+            print(f"Warning: Error disconnecting Runware client: {e}")
 
 
 def get_model_stats(model_id: int, mode: ArenaMode = ArenaMode.TEXT) -> Optional[Dict]:
@@ -757,7 +1008,13 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "llm_models": len(MODEL_IDS), "image_models": len(MODEL_IDS_IMAGE)}
+    return {
+        "status": "healthy", 
+        "llm_models": len(MODEL_IDS), 
+        "image_models": len(MODEL_IDS_IMAGE),
+        "runware_sdk": RUNWARE_SDK_AVAILABLE and runware_client is not None,
+        "image_database": image_database is not None,
+    }
 
 
 @app.get("/model-pool-stats")
@@ -779,6 +1036,42 @@ async def get_model_pool_stats(mode: ArenaMode = Query(ArenaMode.TEXT)):
         else:
             models.append({"id": int(row["id"]), "model": str(row.get("model", ""))})
     return {"models": models, "count": len(models), "mode": mode}
+
+
+@app.get("/image-results")
+async def get_image_results(
+    session_id: Optional[str] = None,
+    model_id: Optional[int] = None,
+    algorithm: Optional[str] = None,
+    limit: int = Query(100, le=1000),
+    offset: int = 0
+):
+    """Retrieve image generation results from the database."""
+    if not image_database:
+        raise HTTPException(status_code=503, detail="Image database not available")
+    
+    query = "SELECT * FROM image_results WHERE 1=1"
+    params = {}
+    
+    if session_id:
+        query += " AND session_id = :session_id"
+        params["session_id"] = session_id
+    if model_id:
+        query += " AND model_id = :model_id"
+        params["model_id"] = model_id
+    if algorithm:
+        query += " AND algorithm = :algorithm"
+        params["algorithm"] = algorithm
+    
+    query += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+    params["limit"] = limit
+    params["offset"] = offset
+    
+    try:
+        results = await image_database.fetch_all(query, params)
+        return {"results": [dict(r) for r in results], "count": len(results)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/interact", response_model=InteractResponse)
@@ -834,10 +1127,27 @@ async def interact(request: InteractRequest):
         b_right = ModelResponse(model_id=baseline_right_id, model_name=_model_display_name_from_id(baseline_right_id, mode),
                                text=baseline_right_result["text"], cost=baseline_right_result["cost"], content_type="text")
     else:
-        cupid_left_result = call_runware(prompt, cupid_left_id, width, height)
-        cupid_right_result = call_runware(prompt, cupid_right_id, width, height)
-        baseline_left_result = call_runware(prompt, baseline_left_id, width, height)
-        baseline_right_result = call_runware(prompt, baseline_right_id, width, height)
+        # Image mode - use async call_runware with session tracking
+        cupid_left_result = await call_runware(
+            prompt, cupid_left_id, width, height,
+            session_id=session_id, algorithm="cupid", 
+            round_number=state.round_count + 1, position="left"
+        )
+        cupid_right_result = await call_runware(
+            prompt, cupid_right_id, width, height,
+            session_id=session_id, algorithm="cupid",
+            round_number=state.round_count + 1, position="right"
+        )
+        baseline_left_result = await call_runware(
+            prompt, baseline_left_id, width, height,
+            session_id=session_id, algorithm="baseline",
+            round_number=state.round_count + 1, position="left"
+        )
+        baseline_right_result = await call_runware(
+            prompt, baseline_right_id, width, height,
+            session_id=session_id, algorithm="baseline",
+            round_number=state.round_count + 1, position="right"
+        )
         
         c_left = ModelResponse(model_id=cupid_left_id, model_name=_model_display_name_from_id(cupid_left_id, mode),
                               text=cupid_left_result["imageUrl"], content=cupid_left_result["imageUrl"],
@@ -909,7 +1219,10 @@ async def chat_with_model(request: ChatRequest):
         cost = result.get("cost", 0)
         content_type = "text"
     else:
-        result = call_runware(request.message, model_id, width, height)
+        result = await call_runware(
+            request.message, model_id, width, height,
+            session_id=session_id, algorithm=request.system
+        )
         response_text = result.get("imageUrl", "")
         cost = result.get("cost", 0)
         content_type = "image"
