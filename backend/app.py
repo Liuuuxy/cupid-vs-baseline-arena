@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 # Database imports
 try:
     from databases import Database
+
     DATABASE_AVAILABLE = True
 except ImportError:
     DATABASE_AVAILABLE = False
@@ -34,6 +35,7 @@ except ImportError:
 # Runware SDK import
 try:
     from runware import Runware, IImageInference
+
     RUNWARE_SDK_AVAILABLE = True
 except ImportError:
     RUNWARE_SDK_AVAILABLE = False
@@ -46,6 +48,7 @@ try:
         PairwiseGP,
         PairwiseLaplaceMarginalLogLikelihood,
     )
+
     BOTORCH_AVAILABLE = True
 except ImportError:
     BOTORCH_AVAILABLE = False
@@ -73,24 +76,16 @@ RUNWARE_API_KEY = os.environ.get("RUNWARE_API_KEY", "")
 # Model pool paths
 MODEL_POOL_PATH = os.environ.get("MODEL_POOL_PATH", "./model-pool.csv")
 MODEL_POOL_LOCAL = os.environ.get("MODEL_POOL_LOCAL", "./model-pool.csv")
-MODEL_POOL_IMAGE_PATH = os.environ.get("MODEL_POOL_IMAGE_PATH", "./image_model_pool.csv")
+MODEL_POOL_IMAGE_PATH = os.environ.get(
+    "MODEL_POOL_IMAGE_PATH", "./image_model_pool.csv"
+)
 
-# Database configuration - LLM results database
+# Database configuration
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 database = Database(DATABASE_URL) if DATABASE_URL and DATABASE_AVAILABLE else None
-
-# Database configuration - Image results database (separate)
-IMAGE_DATABASE_URL = os.environ.get("IMAGE_DATABASE_URL", "")
-if not IMAGE_DATABASE_URL and DATABASE_URL:
-    # Default to same server but different database or table prefix
-    IMAGE_DATABASE_URL = DATABASE_URL
-if IMAGE_DATABASE_URL.startswith("postgres://"):
-    IMAGE_DATABASE_URL = IMAGE_DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
-image_database = Database(IMAGE_DATABASE_URL) if IMAGE_DATABASE_URL and DATABASE_AVAILABLE else None
 
 # Global Runware client instance
 runware_client: Optional[Runware] = None
@@ -104,21 +99,29 @@ def _load_model_pool() -> pd.DataFrame:
     elif os.path.exists(MODEL_POOL_LOCAL):
         df = pd.read_csv(MODEL_POOL_LOCAL)
     else:
-        df = pd.DataFrame({
-            "id": [1, 2, 3, 4, 5],
-            "model-id": [
-                "openai/gpt-4o-mini",
-                "anthropic/claude-3-haiku",
-                "google/gemini-flash-1.5",
-                "meta-llama/llama-3.1-8b-instruct",
-                "mistralai/mistral-7b-instruct",
-            ],
-            "model": ["GPT-4o Mini", "Claude 3 Haiku", "Gemini Flash", "Llama 3.1 8B", "Mistral 7B"],
-            "intelligence": [85, 82, 80, 75, 72],
-            "speed": [90, 88, 92, 85, 87],
-            "input-price": [0.15, 0.25, 0.075, 0.05, 0.05],
-            "output-price": [0.60, 1.25, 0.30, 0.05, 0.05],
-        })
+        df = pd.DataFrame(
+            {
+                "id": [1, 2, 3, 4, 5],
+                "model-id": [
+                    "openai/gpt-4o-mini",
+                    "anthropic/claude-3-haiku",
+                    "google/gemini-flash-1.5",
+                    "meta-llama/llama-3.1-8b-instruct",
+                    "mistralai/mistral-7b-instruct",
+                ],
+                "model": [
+                    "GPT-4o Mini",
+                    "Claude 3 Haiku",
+                    "Gemini Flash",
+                    "Llama 3.1 8B",
+                    "Mistral 7B",
+                ],
+                "intelligence": [85, 82, 80, 75, 72],
+                "speed": [90, 88, 92, 85, 87],
+                "input-price": [0.15, 0.25, 0.075, 0.05, 0.05],
+                "output-price": [0.60, 1.25, 0.30, 0.05, 0.05],
+            }
+        )
     drop_cols = [c for c in df.columns if c.startswith("Unnamed")]
     if drop_cols:
         df = df.drop(columns=drop_cols)
@@ -130,19 +133,39 @@ def _load_image_model_pool() -> pd.DataFrame:
     if os.path.exists(MODEL_POOL_IMAGE_PATH):
         df = pd.read_csv(MODEL_POOL_IMAGE_PATH)
     else:
-        df = pd.DataFrame({
-            "id": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-            "model-id": [
-                "openai:1@1", "openai:2@3", "openai:2@2", "openai:1@2",
-                "openai:4@1", "google:2@3", "google:2@1", "google:2@2",
-                "google:1@2", "google:1@1", "google:4@1", "google:4@2",
-            ],
-            "model": [
-                "GPT Image 1", "DallE 3", "DallE 2", "GPT Image 1 Mini",
-                "GPT Image 1.5", "Imagen 4.0 Fast", "Imagen 4.0 Preview", "Imagen 4.0 Ultra",
-                "Imagen 3.0 Fast", "Imagen 3.0", "Gemini Flash Image 2.5 (Nano Banana)", "Nano Banana Pro",
-            ],
-        })
+        df = pd.DataFrame(
+            {
+                "id": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+                "model-id": [
+                    "openai:1@1",
+                    "openai:2@3",
+                    "openai:2@2",
+                    "openai:1@2",
+                    "openai:4@1",
+                    "google:2@3",
+                    "google:2@1",
+                    "google:2@2",
+                    "google:1@2",
+                    "google:1@1",
+                    "google:4@1",
+                    "google:4@2",
+                ],
+                "model": [
+                    "GPT Image 1",
+                    "DallE 3",
+                    "DallE 2",
+                    "GPT Image 1 Mini",
+                    "GPT Image 1.5",
+                    "Imagen 4.0 Fast",
+                    "Imagen 4.0 Preview",
+                    "Imagen 4.0 Ultra",
+                    "Imagen 3.0 Fast",
+                    "Imagen 3.0",
+                    "Gemini Flash Image 2.5 (Nano Banana)",
+                    "Nano Banana Pro",
+                ],
+            }
+        )
     df.columns = df.columns.str.strip()
     drop_cols = [c for c in df.columns if c.startswith("Unnamed")]
     if drop_cols:
@@ -201,10 +224,10 @@ def _id_to_index(model_id: int, mode: ArenaMode = ArenaMode.TEXT) -> int:
 
 # ================== Database Functions for Image Results ==================
 async def init_image_database():
-    """Initialize the image results database table."""
-    if not image_database:
+    """Initialize the image results table in the existing database."""
+    if not database:
         return
-    
+
     create_table_query = """
     CREATE TABLE IF NOT EXISTS image_results (
         id SERIAL PRIMARY KEY,
@@ -225,17 +248,82 @@ async def init_image_database():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         metadata JSONB
     );
-    
-    CREATE INDEX IF NOT EXISTS idx_image_results_session ON image_results(session_id);
-    CREATE INDEX IF NOT EXISTS idx_image_results_model ON image_results(model_id);
-    CREATE INDEX IF NOT EXISTS idx_image_results_created ON image_results(created_at);
     """
-    
+
     try:
-        await image_database.execute(create_table_query)
-        print("Image results database table initialized successfully.")
+        await database.execute(create_table_query)
+        # Create indexes separately to avoid errors if they already exist
+        try:
+            await database.execute(
+                "CREATE INDEX IF NOT EXISTS idx_image_results_session ON image_results(session_id);"
+            )
+        except Exception:
+            pass
+        try:
+            await database.execute(
+                "CREATE INDEX IF NOT EXISTS idx_image_results_model ON image_results(model_id);"
+            )
+        except Exception:
+            pass
+        try:
+            await database.execute(
+                "CREATE INDEX IF NOT EXISTS idx_image_results_created ON image_results(created_at);"
+            )
+        except Exception:
+            pass
+        print("Image results table initialized successfully.")
     except Exception as e:
         print(f"Warning: Could not create image_results table: {e}")
+
+
+async def init_study_results_table():
+    """Initialize the study_results table for storing complete study data."""
+    if not database:
+        return
+
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS study_results (
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(255) UNIQUE,
+        timestamp TIMESTAMP,
+        mode VARCHAR(20),
+        demographics JSONB,
+        persona_group VARCHAR(50),
+        expert_subject VARCHAR(100),
+        constraints JSONB,
+        budget JSONB,
+        initial_preference VARCHAR(50),
+        final_state JSONB,
+        history JSONB,
+        open_testing JSONB,
+        evaluation JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """
+
+    try:
+        await database.execute(create_table_query)
+        try:
+            await database.execute(
+                "CREATE INDEX IF NOT EXISTS idx_study_results_session ON study_results(session_id);"
+            )
+        except Exception:
+            pass
+        try:
+            await database.execute(
+                "CREATE INDEX IF NOT EXISTS idx_study_results_persona ON study_results(persona_group);"
+            )
+        except Exception:
+            pass
+        try:
+            await database.execute(
+                "CREATE INDEX IF NOT EXISTS idx_study_results_created ON study_results(created_at);"
+            )
+        except Exception:
+            pass
+        print("Study results table initialized successfully.")
+    except Exception as e:
+        print(f"Warning: Could not create study_results table: {e}")
 
 
 async def save_image_result(
@@ -253,12 +341,12 @@ async def save_image_result(
     algorithm: Optional[str] = None,
     round_number: Optional[int] = None,
     position: Optional[str] = None,
-    metadata: Optional[Dict] = None
+    metadata: Optional[Dict] = None,
 ):
-    """Save image generation result to the image database."""
-    if not image_database:
+    """Save image generation result to the database."""
+    if not database:
         return
-    
+
     insert_query = """
     INSERT INTO image_results 
     (task_uuid, session_id, model_id, model_name, display_name, prompt, image_url, 
@@ -271,9 +359,9 @@ async def save_image_result(
         cost = EXCLUDED.cost,
         metadata = EXCLUDED.metadata
     """
-    
+
     try:
-        await image_database.execute(
+        await database.execute(
             insert_query,
             {
                 "task_uuid": task_uuid,
@@ -291,7 +379,7 @@ async def save_image_result(
                 "round_number": round_number,
                 "position": position,
                 "metadata": json.dumps(metadata) if metadata else None,
-            }
+            },
         )
     except Exception as e:
         print(f"Warning: Could not save image result to database: {e}")
@@ -301,7 +389,7 @@ async def save_image_result(
 def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
     """Generate LLM text response via OpenRouter (original)."""
     model_name = _model_name_from_id(model_id, ArenaMode.TEXT)
-    
+
     try:
         row = MODEL_POOL[MODEL_POOL["id"] == model_id].iloc[0]
         input_price = float(row.get("input-price", 0) or 0)
@@ -312,7 +400,9 @@ def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
     if not OPENROUTER_API_KEY:
         mock_prompt_tokens = int(len(prompt.split()) * 1.3) + 30
         mock_completion_tokens = 150
-        mock_cost = (mock_prompt_tokens * input_price / 1_000_000) + (mock_completion_tokens * output_price / 1_000_000)
+        mock_cost = (mock_prompt_tokens * input_price / 1_000_000) + (
+            mock_completion_tokens * output_price / 1_000_000
+        )
         return {
             "text": f"[Mock response from {_model_display_name_from_id(model_id, ArenaMode.TEXT)}] This is a simulated response. Your query: {prompt[:100]}...",
             "cost": mock_cost,
@@ -323,14 +413,22 @@ def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
     payload = {
         "model": model_name,
         "messages": [
-            {"role": "system", "content": "You are a helpful AI assistant. Answer concisely and accurately."},
+            {
+                "role": "system",
+                "content": "You are a helpful AI assistant. Answer concisely and accurately.",
+            },
             {"role": "user", "content": prompt},
         ],
         "usage": {"include": True},
     }
 
     try:
-        response = requests.post(OPENROUTER_URL, headers=OPENROUTER_HEADERS, data=json.dumps(payload), timeout=60)
+        response = requests.post(
+            OPENROUTER_URL,
+            headers=OPENROUTER_HEADERS,
+            data=json.dumps(payload),
+            timeout=60,
+        )
         response.raise_for_status()
         data = response.json()
         text = ""
@@ -344,22 +442,28 @@ def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
             "completion_tokens": int(usage.get("completion_tokens", 0) or 0),
         }
     except Exception as e:
-        return {"text": f"[Error: {str(e)}]", "cost": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "error": str(e)}
+        return {
+            "text": f"[Error: {str(e)}]",
+            "cost": 0.0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "error": str(e),
+        }
 
 
 async def call_runware(
-    prompt: str, 
-    model_id: int, 
-    width: int = 1024, 
+    prompt: str,
+    model_id: int,
+    width: int = 1024,
     height: int = 1024,
     session_id: Optional[str] = None,
     algorithm: Optional[str] = None,
     round_number: Optional[int] = None,
-    position: Optional[str] = None
+    position: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Generate image via Runware SDK (WebSocket-based)."""
     global runware_client
-    
+
     model_name = _model_name_from_id(model_id, ArenaMode.IMAGE)
     display_name = _model_display_name_from_id(model_id, ArenaMode.IMAGE)
     task_uuid = str(uuid.uuid4())
@@ -389,7 +493,7 @@ async def call_runware(
             algorithm=algorithm,
             round_number=round_number,
             position=position,
-            metadata={"mock": True}
+            metadata={"mock": True},
         )
         return result
 
@@ -403,19 +507,25 @@ async def call_runware(
                 height=height,
                 numberResults=1,
                 outputFormat="JPG",
+                includeCost=True,  # Enable cost reporting in response
             )
-            
+
             images = await runware_client.imageInference(requestImage=request)
-            
+
             if images and len(images) > 0:
                 image = images[0]
+                # Access cost from the response - it's included when includeCost=True
+                image_cost = price_per_image  # Default fallback
+                if hasattr(image, "cost") and image.cost is not None:
+                    image_cost = float(image.cost)
+
                 result = {
                     "imageUrl": image.imageURL,
-                    "cost": float(getattr(image, 'cost', price_per_image) or price_per_image),
-                    "seed": int(getattr(image, 'seed', 0) or 0),
-                    "taskUUID": getattr(image, 'taskUUID', task_uuid) or task_uuid,
+                    "cost": image_cost,
+                    "seed": int(getattr(image, "seed", 0) or 0),
+                    "taskUUID": getattr(image, "taskUUID", task_uuid) or task_uuid,
                 }
-                
+
                 # Save result to image database
                 await save_image_result(
                     task_uuid=result["taskUUID"],
@@ -432,83 +542,92 @@ async def call_runware(
                     algorithm=algorithm,
                     round_number=round_number,
                     position=position,
-                    metadata={"sdk": "runware-python", "model": model_name}
+                    metadata={"sdk": "runware-python", "model": model_name},
                 )
-                
+                # In the SDK response handling section, add:
+                print(
+                    f"Runware response - cost: {getattr(image, 'cost', 'NOT_FOUND')}, attrs: {dir(image)}"
+                )
                 return result
             else:
-                return {"imageUrl": "", "cost": 0.0, "seed": 0, "taskUUID": task_uuid, "error": "No image returned"}
-                
+                return {
+                    "imageUrl": "",
+                    "cost": 0.0,
+                    "seed": 0,
+                    "taskUUID": task_uuid,
+                    "error": "No image returned",
+                }
+
         except Exception as e:
             print(f"Runware SDK error: {e}")
             # Fall through to REST API fallback
-    
-    # REST API fallback
-    RUNWARE_URL = "https://api.runware.ai/v1"
-    RUNWARE_HEADERS = {
-        "Authorization": f"Bearer {RUNWARE_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    
-    payload = [{
-        "taskType": "imageInference",
-        "taskUUID": task_uuid,
-        "model": model_name,
-        "positivePrompt": prompt,
-        "width": width,
-        "height": height,
-        "numberResults": 1,
-        "outputType": "URL",
-        "outputFormat": "JPG",
-        "includeCost": True,
-    }]
 
-    try:
-        response = requests.post(
-            f"{RUNWARE_URL}/tasks",
-            headers=RUNWARE_HEADERS,
-            json=payload,
-            timeout=120
-        )
-        response.raise_for_status()
-        data = response.json()
-        
-        if "data" in data and len(data["data"]) > 0:
-            api_result = data["data"][0]
-            result = {
-                "imageUrl": api_result.get("imageURL", ""),
-                "cost": float(api_result.get("cost", price_per_image) or price_per_image),
-                "seed": api_result.get("seed", 0),
-                "taskUUID": task_uuid,
-            }
-            
-            # Save result to image database
-            await save_image_result(
-                task_uuid=task_uuid,
-                session_id=session_id,
-                model_id=model_id,
-                model_name=model_name,
-                display_name=display_name,
-                prompt=prompt,
-                image_url=result["imageUrl"],
-                width=width,
-                height=height,
-                seed=result["seed"],
-                cost=result["cost"],
-                algorithm=algorithm,
-                round_number=round_number,
-                position=position,
-                metadata={"sdk": "rest-api", "model": model_name}
-            )
-            
-            return result
-        else:
-            errors = data.get("errors", [])
-            error_msg = errors[0].get("message", "Unknown error") if errors else "No image returned"
-            return {"imageUrl": "", "cost": 0.0, "seed": 0, "taskUUID": task_uuid, "error": error_msg}
-    except Exception as e:
-        print(f"Runware API error: {e}")
-        return {"imageUrl": "", "cost": 0.0, "seed": 0, "taskUUID": task_uuid, "error": str(e)}
+    # # REST API fallback
+    # RUNWARE_URL = "https://api.runware.ai/v1"
+    # RUNWARE_HEADERS = {
+    #     "Authorization": f"Bearer {RUNWARE_API_KEY}",
+    #     "Content-Type": "application/json",
+    # }
+
+    # payload = [{
+    #     "taskType": "imageInference",
+    #     "taskUUID": task_uuid,
+    #     "model": model_name,
+    #     "positivePrompt": prompt,
+    #     "width": width,
+    #     "height": height,
+    #     "numberResults": 1,
+    #     "outputType": "URL",
+    #     "outputFormat": "JPG",
+    #     "includeCost": True,
+    # }]
+
+    # try:
+    #     response = requests.post(
+    #         f"{RUNWARE_URL}/tasks",
+    #         headers=RUNWARE_HEADERS,
+    #         json=payload,
+    #         timeout=120
+    #     )
+    #     response.raise_for_status()
+    #     data = response.json()
+
+    #     if "data" in data and len(data["data"]) > 0:
+    #         api_result = data["data"][0]
+    #         result = {
+    #             "imageUrl": api_result.get("imageURL", ""),
+    #             "cost": float(api_result.get("cost", price_per_image) or price_per_image),
+    #             "seed": api_result.get("seed", 0),
+    #             "taskUUID": task_uuid,
+    #         }
+
+    #         # Save result to image database
+    #         await save_image_result(
+    #             task_uuid=task_uuid,
+    #             session_id=session_id,
+    #             model_id=model_id,
+    #             model_name=model_name,
+    #             display_name=display_name,
+    #             prompt=prompt,
+    #             image_url=result["imageUrl"],
+    #             width=width,
+    #             height=height,
+    #             seed=result["seed"],
+    #             cost=result["cost"],
+    #             algorithm=algorithm,
+    #             round_number=round_number,
+    #             position=position,
+    #             metadata={"sdk": "rest-api", "model": model_name}
+    #         )
+
+    #         return result
+    #     else:
+    #         errors = data.get("errors", [])
+    #         error_msg = errors[0].get("message", "Unknown error") if errors else "No image returned"
+    #         return {"imageUrl": "", "cost": 0.0, "seed": 0, "taskUUID": task_uuid, "error": error_msg}
+    # except Exception as e:
+    #     print(f"Runware API error: {e}")
+    #     return {"imageUrl": "", "cost": 0.0, "seed": 0, "taskUUID": task_uuid, "error": str(e)}
 
 
 # ================== CUPID Algorithm Components (Original) ==================
@@ -526,7 +645,9 @@ if BOTORCH_AVAILABLE:
         return e
 
     def build_point(arm_id: int, ctx_id: int, num_models: int) -> torch.Tensor:
-        return torch.cat([encode_arm(arm_id, num_models), encode_context(ctx_id, num_models)], dim=0)
+        return torch.cat(
+            [encode_arm(arm_id, num_models), encode_context(ctx_id, num_models)], dim=0
+        )
 
     def block_features(arms: List[int], ctx_id: int, num_models: int) -> torch.Tensor:
         return torch.stack([build_point(a, ctx_id, num_models) for a in arms], dim=0)
@@ -539,8 +660,12 @@ if BOTORCH_AVAILABLE:
             dummy = torch.tensor([[0, 1]], dtype=torch.long, device=train_X.device)
             return PairwiseGP(train_X, dummy)
 
-    def fit_model(train_X: torch.Tensor, comps_wl, min_fit_pairs: int = 5) -> PairwiseGP:
-        if comps_wl is None or (isinstance(comps_wl, torch.Tensor) and comps_wl.numel() == 0):
+    def fit_model(
+        train_X: torch.Tensor, comps_wl, min_fit_pairs: int = 5
+    ) -> PairwiseGP:
+        if comps_wl is None or (
+            isinstance(comps_wl, torch.Tensor) and comps_wl.numel() == 0
+        ):
             return _safe_init_model(train_X)
         model = PairwiseGP(train_X, comps_wl)
         if comps_wl.shape[0] >= min_fit_pairs:
@@ -559,7 +684,9 @@ if BOTORCH_AVAILABLE:
 
 class DiscreteBelief:
     def __init__(self, n: int):
-        self.logp = torch.zeros(n, dtype=torch.double) if BOTORCH_AVAILABLE else np.zeros(n)
+        self.logp = (
+            torch.zeros(n, dtype=torch.double) if BOTORCH_AVAILABLE else np.zeros(n)
+        )
 
     def probs(self):
         if BOTORCH_AVAILABLE:
@@ -595,7 +722,15 @@ def _calc_spread(vec, method: str = "iqr") -> float:
         return float(max(q75 - q25, 0.0))
 
 
-def _base_ucb(mu, cov, beta: float, cooldown_vec=None, cooldown_w: float = 0.0, cost_vec=None, penalty_p: float = 0.0):
+def _base_ucb(
+    mu,
+    cov,
+    beta: float,
+    cooldown_vec=None,
+    cooldown_w: float = 0.0,
+    cost_vec=None,
+    penalty_p: float = 0.0,
+):
     if BOTORCH_AVAILABLE:
         var = cov.diag().clamp_min(0.0)
         base = mu + beta * var.sqrt()
@@ -633,7 +768,13 @@ def bt_grad(theta: np.ndarray, wins: np.ndarray, N: np.ndarray) -> np.ndarray:
     return grad
 
 
-def fit_bt(theta_init: np.ndarray, wins: np.ndarray, N: np.ndarray, steps: int = 50, lr: float = 0.01) -> np.ndarray:
+def fit_bt(
+    theta_init: np.ndarray,
+    wins: np.ndarray,
+    N: np.ndarray,
+    steps: int = 50,
+    lr: float = 0.01,
+) -> np.ndarray:
     theta = theta_init.copy()
     if wins.sum() == 0:
         theta -= theta.mean()
@@ -645,9 +786,15 @@ def fit_bt(theta_init: np.ndarray, wins: np.ndarray, N: np.ndarray, steps: int =
     return theta
 
 
-def choose_pair_baseline(theta_hat: np.ndarray, wins: np.ndarray, N: np.ndarray,
-                         alpha_score: float = 1.0, alpha_unc: float = 1.0,
-                         tau: float = 1.0, eps_random: float = 0.05) -> Tuple[int, int]:
+def choose_pair_baseline(
+    theta_hat: np.ndarray,
+    wins: np.ndarray,
+    N: np.ndarray,
+    alpha_score: float = 1.0,
+    alpha_unc: float = 1.0,
+    tau: float = 1.0,
+    eps_random: float = 0.05,
+) -> Tuple[int, int]:
     K = theta_hat.shape[0]
     counts_per_arm = N.sum(axis=1)
     s = 1.0 / np.sqrt(np.maximum(counts_per_arm, 1.0))
@@ -679,7 +826,9 @@ def choose_pair_baseline(theta_hat: np.ndarray, wins: np.ndarray, N: np.ndarray,
 
 # ================== Session State Management ==================
 class CUPIDState:
-    def __init__(self, arms: List[int], contexts: List[int], mode: ArenaMode = ArenaMode.TEXT):
+    def __init__(
+        self, arms: List[int], contexts: List[int], mode: ArenaMode = ArenaMode.TEXT
+    ):
         self.arms = arms
         self.contexts = contexts
         self.K = len(arms)
@@ -690,7 +839,9 @@ class CUPIDState:
         if BOTORCH_AVAILABLE:
             prior_anchor_ctx = contexts[0]
             self.train_X = block_features(arms, prior_anchor_ctx, self.num_models)
-            self.index_of: Dict[Tuple[int, int], int] = {(a_idx, 0): a_idx for a_idx in range(self.K)}
+            self.index_of: Dict[Tuple[int, int], int] = {
+                (a_idx, 0): a_idx for a_idx in range(self.K)
+            }
             self.comps_wl = None
             self.model = fit_model(self.train_X, self.comps_wl)
 
@@ -710,23 +861,32 @@ class CUPIDState:
 
     @property
     def current_left_id(self) -> Optional[int]:
-        if self.current_left_idx is not None and 0 <= self.current_left_idx < len(self.arms):
+        if self.current_left_idx is not None and 0 <= self.current_left_idx < len(
+            self.arms
+        ):
             return self.arms[self.current_left_idx]
         return None
 
     @property
     def current_right_id(self) -> Optional[int]:
-        if self.current_right_idx is not None and 0 <= self.current_right_idx < len(self.arms):
+        if self.current_right_idx is not None and 0 <= self.current_right_idx < len(
+            self.arms
+        ):
             return self.arms[self.current_right_idx]
         return None
 
     def select_pair(self, direction_text: str = "") -> Tuple[int, int]:
         if not BOTORCH_AVAILABLE:
             import random
+
             indices = list(range(self.K))
             i = random.choice(indices)
             j = random.choice([x for x in indices if x != i])
-            self.current_left_idx, self.current_right_idx, self.current_ctx_idx = i, j, 0
+            self.current_left_idx, self.current_right_idx, self.current_ctx_idx = (
+                i,
+                j,
+                0,
+            )
             return self.arms[i], self.arms[j]
 
         cost_vec = torch.zeros(self.K, dtype=torch.double)
@@ -740,7 +900,9 @@ class CUPIDState:
         expected_base = torch.zeros(self.K, dtype=torch.double)
 
         for cidx, ctx in enumerate(self.contexts):
-            mu, cov = posterior_stats(self.model, block_features(self.arms, ctx, self.num_models))
+            mu, cov = posterior_stats(
+                self.model, block_features(self.arms, ctx, self.num_models)
+            )
             base_ctx = _base_ucb(mu, cov, self.beta, cooldown_vec, 0.0, cost_vec, 0.0)
             expected_base += p[cidx] * base_ctx
 
@@ -777,10 +939,17 @@ class CUPIDState:
                     self.train_X = torch.cat([self.train_X, feat.unsqueeze(0)], dim=0)
 
         map_ctx = self.belief.map()
-        idx_w, idx_l = self.index_of[(winner_arm, map_ctx)], self.index_of[(loser_arm, map_ctx)]
+        idx_w, idx_l = (
+            self.index_of[(winner_arm, map_ctx)],
+            self.index_of[(loser_arm, map_ctx)],
+        )
 
         new_comp = torch.tensor([[idx_w, idx_l]], dtype=torch.long)
-        self.comps_wl = new_comp if self.comps_wl is None else torch.cat([self.comps_wl, new_comp], dim=0)
+        self.comps_wl = (
+            new_comp
+            if self.comps_wl is None
+            else torch.cat([self.comps_wl, new_comp], dim=0)
+        )
         self.model = fit_model(self.train_X, self.comps_wl, self.min_fit_pairs)
 
         self.recent_arms.extend([winner_arm, loser_arm])
@@ -803,11 +972,19 @@ class BaselineState:
 
     @property
     def current_left_id(self) -> Optional[int]:
-        return self.arms[self.current_i] if self.current_i is not None and 0 <= self.current_i < len(self.arms) else None
+        return (
+            self.arms[self.current_i]
+            if self.current_i is not None and 0 <= self.current_i < len(self.arms)
+            else None
+        )
 
     @property
     def current_right_id(self) -> Optional[int]:
-        return self.arms[self.current_j] if self.current_j is not None and 0 <= self.current_j < len(self.arms) else None
+        return (
+            self.arms[self.current_j]
+            if self.current_j is not None and 0 <= self.current_j < len(self.arms)
+            else None
+        )
 
     def select_pair(self) -> Tuple[int, int]:
         i, j = choose_pair_baseline(self.theta, self.wins, self.N)
@@ -926,6 +1103,23 @@ class SaveSessionRequest(BaseModel):
     side_by_side_rounds: Optional[int] = None
 
 
+class SaveResultsRequest(BaseModel):
+    """Full study results object from frontend."""
+
+    session_id: Optional[str] = None
+    timestamp: Optional[str] = None
+    demographics: Optional[Dict] = None
+    persona_group: Optional[str] = None
+    expert_subject: Optional[str] = None
+    constraints: Optional[List[Dict]] = None
+    budget: Optional[Dict] = None
+    initial_preference: Optional[str] = None
+    final_state: Optional[Dict] = None
+    history: Optional[List[Dict]] = None
+    open_testing: Optional[Dict] = None
+    evaluation: Optional[Dict] = None
+
+
 # ================== FastAPI App ==================
 app = FastAPI(title="Model Selection Arena - Text & Image")
 
@@ -941,16 +1135,14 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup():
     global runware_client
-    
-    # Connect to LLM database
+
+    # Connect to database
     if database:
         await database.connect()
-    
-    # Connect to image database and initialize table
-    if image_database:
-        await image_database.connect()
+        # Initialize tables
         await init_image_database()
-    
+        await init_study_results_table()
+
     # Initialize Runware SDK client
     if RUNWARE_SDK_AVAILABLE and RUNWARE_API_KEY:
         try:
@@ -965,13 +1157,10 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     global runware_client
-    
+
     if database:
         await database.disconnect()
-    
-    if image_database:
-        await image_database.disconnect()
-    
+
     # Disconnect Runware client
     if runware_client:
         try:
@@ -987,13 +1176,25 @@ def get_model_stats(model_id: int, mode: ArenaMode = ArenaMode.TEXT) -> Optional
         if mode == ArenaMode.TEXT:
             return {
                 "id": model_id,
-                "intelligence": int(row.get("intelligence")) if pd.notna(row.get("intelligence")) else None,
+                "intelligence": int(row.get("intelligence"))
+                if pd.notna(row.get("intelligence"))
+                else None,
                 "speed": int(row.get("speed")) if pd.notna(row.get("speed")) else None,
-                "reasoning": int(row.get("reasoning")) if pd.notna(row.get("reasoning")) else None,
-                "input_price": float(row.get("input-price")) if pd.notna(row.get("input-price")) else None,
-                "output_price": float(row.get("output-price")) if pd.notna(row.get("output-price")) else None,
-                "context_window": int(row.get("context_window")) if pd.notna(row.get("context_window")) else None,
-                "max_output": int(row.get("max_output")) if pd.notna(row.get("max_output")) else None,
+                "reasoning": int(row.get("reasoning"))
+                if pd.notna(row.get("reasoning"))
+                else None,
+                "input_price": float(row.get("input-price"))
+                if pd.notna(row.get("input-price"))
+                else None,
+                "output_price": float(row.get("output-price"))
+                if pd.notna(row.get("output-price"))
+                else None,
+                "context_window": int(row.get("context_window"))
+                if pd.notna(row.get("context_window"))
+                else None,
+                "max_output": int(row.get("max_output"))
+                if pd.notna(row.get("max_output"))
+                else None,
             }
         else:
             return {"id": model_id, "model": str(row.get("model", ""))}
@@ -1003,17 +1204,20 @@ def get_model_stats(model_id: int, mode: ArenaMode = ArenaMode.TEXT) -> Optional
 
 @app.get("/")
 async def root():
-    return {"message": "Model Selection Arena API - Text & Image", "modes": ["text", "image"]}
+    return {
+        "message": "Model Selection Arena API - Text & Image",
+        "modes": ["text", "image"],
+    }
 
 
 @app.get("/health")
 async def health():
     return {
-        "status": "healthy", 
-        "llm_models": len(MODEL_IDS), 
+        "status": "healthy",
+        "llm_models": len(MODEL_IDS),
         "image_models": len(MODEL_IDS_IMAGE),
         "runware_sdk": RUNWARE_SDK_AVAILABLE and runware_client is not None,
-        "image_database": image_database is not None,
+        "database": database is not None,
     }
 
 
@@ -1023,16 +1227,32 @@ async def get_model_pool_stats(mode: ArenaMode = Query(ArenaMode.TEXT)):
     models = []
     for _, row in pool.iterrows():
         if mode == ArenaMode.TEXT:
-            models.append({
-                "id": int(row["id"]),
-                "intelligence": int(row.get("intelligence")) if pd.notna(row.get("intelligence")) else None,
-                "speed": int(row.get("speed")) if pd.notna(row.get("speed")) else None,
-                "reasoning": int(row.get("reasoning")) if pd.notna(row.get("reasoning")) else None,
-                "input_price": float(row.get("input-price")) if pd.notna(row.get("input-price")) else None,
-                "output_price": float(row.get("output-price")) if pd.notna(row.get("output-price")) else None,
-                "context_window": int(row.get("context_window")) if pd.notna(row.get("context_window")) else None,
-                "max_output": int(row.get("max_output")) if pd.notna(row.get("max_output")) else None,
-            })
+            models.append(
+                {
+                    "id": int(row["id"]),
+                    "intelligence": int(row.get("intelligence"))
+                    if pd.notna(row.get("intelligence"))
+                    else None,
+                    "speed": int(row.get("speed"))
+                    if pd.notna(row.get("speed"))
+                    else None,
+                    "reasoning": int(row.get("reasoning"))
+                    if pd.notna(row.get("reasoning"))
+                    else None,
+                    "input_price": float(row.get("input-price"))
+                    if pd.notna(row.get("input-price"))
+                    else None,
+                    "output_price": float(row.get("output-price"))
+                    if pd.notna(row.get("output-price"))
+                    else None,
+                    "context_window": int(row.get("context_window"))
+                    if pd.notna(row.get("context_window"))
+                    else None,
+                    "max_output": int(row.get("max_output"))
+                    if pd.notna(row.get("max_output"))
+                    else None,
+                }
+            )
         else:
             models.append({"id": int(row["id"]), "model": str(row.get("model", ""))})
     return {"models": models, "count": len(models), "mode": mode}
@@ -1044,15 +1264,15 @@ async def get_image_results(
     model_id: Optional[int] = None,
     algorithm: Optional[str] = None,
     limit: int = Query(100, le=1000),
-    offset: int = 0
+    offset: int = 0,
 ):
     """Retrieve image generation results from the database."""
-    if not image_database:
-        raise HTTPException(status_code=503, detail="Image database not available")
-    
+    if not database:
+        raise HTTPException(status_code=503, detail="Database not available")
+
     query = "SELECT * FROM image_results WHERE 1=1"
     params = {}
-    
+
     if session_id:
         query += " AND session_id = :session_id"
         params["session_id"] = session_id
@@ -1062,13 +1282,13 @@ async def get_image_results(
     if algorithm:
         query += " AND algorithm = :algorithm"
         params["algorithm"] = algorithm
-    
+
     query += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
     params["limit"] = limit
     params["offset"] = offset
-    
+
     try:
-        results = await image_database.fetch_all(query, params)
+        results = await database.fetch_all(query, params)
         return {"results": [dict(r) for r in results], "count": len(results)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1091,12 +1311,20 @@ async def interact(request: InteractRequest):
         if request.cupid_vote:
             winner_is_left = request.cupid_vote == "left"
             state.cupid.update_with_vote(winner_is_left)
-            state.final_cupid_model_id = state.cupid.current_left_id if winner_is_left else state.cupid.current_right_id
+            state.final_cupid_model_id = (
+                state.cupid.current_left_id
+                if winner_is_left
+                else state.cupid.current_right_id
+            )
 
         if request.baseline_vote:
             winner_is_left = request.baseline_vote == "left"
             state.baseline.update_with_vote(winner_is_left)
-            state.final_baseline_model_id = state.baseline.current_left_id if winner_is_left else state.baseline.current_right_id
+            state.final_baseline_model_id = (
+                state.baseline.current_left_id
+                if winner_is_left
+                else state.baseline.current_right_id
+            )
     else:
         session_id = f"sess_{mode.value}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
         state = SessionState(mode)
@@ -1117,50 +1345,110 @@ async def interact(request: InteractRequest):
         cupid_right_result = call_openrouter(prompt, cupid_right_id)
         baseline_left_result = call_openrouter(prompt, baseline_left_id)
         baseline_right_result = call_openrouter(prompt, baseline_right_id)
-        
-        c_left = ModelResponse(model_id=cupid_left_id, model_name=_model_display_name_from_id(cupid_left_id, mode),
-                              text=cupid_left_result["text"], cost=cupid_left_result["cost"], content_type="text")
-        c_right = ModelResponse(model_id=cupid_right_id, model_name=_model_display_name_from_id(cupid_right_id, mode),
-                               text=cupid_right_result["text"], cost=cupid_right_result["cost"], content_type="text")
-        b_left = ModelResponse(model_id=baseline_left_id, model_name=_model_display_name_from_id(baseline_left_id, mode),
-                              text=baseline_left_result["text"], cost=baseline_left_result["cost"], content_type="text")
-        b_right = ModelResponse(model_id=baseline_right_id, model_name=_model_display_name_from_id(baseline_right_id, mode),
-                               text=baseline_right_result["text"], cost=baseline_right_result["cost"], content_type="text")
+
+        c_left = ModelResponse(
+            model_id=cupid_left_id,
+            model_name=_model_display_name_from_id(cupid_left_id, mode),
+            text=cupid_left_result["text"],
+            cost=cupid_left_result["cost"],
+            content_type="text",
+        )
+        c_right = ModelResponse(
+            model_id=cupid_right_id,
+            model_name=_model_display_name_from_id(cupid_right_id, mode),
+            text=cupid_right_result["text"],
+            cost=cupid_right_result["cost"],
+            content_type="text",
+        )
+        b_left = ModelResponse(
+            model_id=baseline_left_id,
+            model_name=_model_display_name_from_id(baseline_left_id, mode),
+            text=baseline_left_result["text"],
+            cost=baseline_left_result["cost"],
+            content_type="text",
+        )
+        b_right = ModelResponse(
+            model_id=baseline_right_id,
+            model_name=_model_display_name_from_id(baseline_right_id, mode),
+            text=baseline_right_result["text"],
+            cost=baseline_right_result["cost"],
+            content_type="text",
+        )
     else:
         # Image mode - use async call_runware with session tracking
         cupid_left_result = await call_runware(
-            prompt, cupid_left_id, width, height,
-            session_id=session_id, algorithm="cupid", 
-            round_number=state.round_count + 1, position="left"
+            prompt,
+            cupid_left_id,
+            width,
+            height,
+            session_id=session_id,
+            algorithm="cupid",
+            round_number=state.round_count + 1,
+            position="left",
         )
         cupid_right_result = await call_runware(
-            prompt, cupid_right_id, width, height,
-            session_id=session_id, algorithm="cupid",
-            round_number=state.round_count + 1, position="right"
+            prompt,
+            cupid_right_id,
+            width,
+            height,
+            session_id=session_id,
+            algorithm="cupid",
+            round_number=state.round_count + 1,
+            position="right",
         )
         baseline_left_result = await call_runware(
-            prompt, baseline_left_id, width, height,
-            session_id=session_id, algorithm="baseline",
-            round_number=state.round_count + 1, position="left"
+            prompt,
+            baseline_left_id,
+            width,
+            height,
+            session_id=session_id,
+            algorithm="baseline",
+            round_number=state.round_count + 1,
+            position="left",
         )
         baseline_right_result = await call_runware(
-            prompt, baseline_right_id, width, height,
-            session_id=session_id, algorithm="baseline",
-            round_number=state.round_count + 1, position="right"
+            prompt,
+            baseline_right_id,
+            width,
+            height,
+            session_id=session_id,
+            algorithm="baseline",
+            round_number=state.round_count + 1,
+            position="right",
         )
-        
-        c_left = ModelResponse(model_id=cupid_left_id, model_name=_model_display_name_from_id(cupid_left_id, mode),
-                              text=cupid_left_result["imageUrl"], content=cupid_left_result["imageUrl"],
-                              cost=cupid_left_result["cost"], content_type="image")
-        c_right = ModelResponse(model_id=cupid_right_id, model_name=_model_display_name_from_id(cupid_right_id, mode),
-                               text=cupid_right_result["imageUrl"], content=cupid_right_result["imageUrl"],
-                               cost=cupid_right_result["cost"], content_type="image")
-        b_left = ModelResponse(model_id=baseline_left_id, model_name=_model_display_name_from_id(baseline_left_id, mode),
-                              text=baseline_left_result["imageUrl"], content=baseline_left_result["imageUrl"],
-                              cost=baseline_left_result["cost"], content_type="image")
-        b_right = ModelResponse(model_id=baseline_right_id, model_name=_model_display_name_from_id(baseline_right_id, mode),
-                               text=baseline_right_result["imageUrl"], content=baseline_right_result["imageUrl"],
-                               cost=baseline_right_result["cost"], content_type="image")
+
+        c_left = ModelResponse(
+            model_id=cupid_left_id,
+            model_name=_model_display_name_from_id(cupid_left_id, mode),
+            text=cupid_left_result["imageUrl"],
+            content=cupid_left_result["imageUrl"],
+            cost=cupid_left_result["cost"],
+            content_type="image",
+        )
+        c_right = ModelResponse(
+            model_id=cupid_right_id,
+            model_name=_model_display_name_from_id(cupid_right_id, mode),
+            text=cupid_right_result["imageUrl"],
+            content=cupid_right_result["imageUrl"],
+            cost=cupid_right_result["cost"],
+            content_type="image",
+        )
+        b_left = ModelResponse(
+            model_id=baseline_left_id,
+            model_name=_model_display_name_from_id(baseline_left_id, mode),
+            text=baseline_left_result["imageUrl"],
+            content=baseline_left_result["imageUrl"],
+            cost=baseline_left_result["cost"],
+            content_type="image",
+        )
+        b_right = ModelResponse(
+            model_id=baseline_right_id,
+            model_name=_model_display_name_from_id(baseline_right_id, mode),
+            text=baseline_right_result["imageUrl"],
+            content=baseline_right_result["imageUrl"],
+            cost=baseline_right_result["cost"],
+            content_type="image",
+        )
 
     # Update costs
     state.cupid.total_cost += c_left.cost + c_right.cost
@@ -1169,7 +1457,8 @@ async def interact(request: InteractRequest):
 
     total_cost = state.cupid.total_cost + state.baseline.total_cost
 
-    state.history.append({
+    # Build history entry
+    history_entry = {
         "round": state.round_count,
         "prompt": prompt,
         "cupid_left_id": cupid_left_id,
@@ -1179,7 +1468,24 @@ async def interact(request: InteractRequest):
         "cupid_vote": request.cupid_vote,
         "baseline_vote": request.baseline_vote,
         "total_cost": total_cost,
-    })
+    }
+
+    # Add image URLs for image mode
+    if mode == ArenaMode.IMAGE:
+        history_entry["cupid_left_image_url"] = cupid_left_result.get("imageUrl", "")
+        history_entry["cupid_right_image_url"] = cupid_right_result.get("imageUrl", "")
+        history_entry["baseline_left_image_url"] = baseline_left_result.get(
+            "imageUrl", ""
+        )
+        history_entry["baseline_right_image_url"] = baseline_right_result.get(
+            "imageUrl", ""
+        )
+        history_entry["cupid_left_cost"] = cupid_left_result.get("cost", 0)
+        history_entry["cupid_right_cost"] = cupid_right_result.get("cost", 0)
+        history_entry["baseline_left_cost"] = baseline_left_result.get("cost", 0)
+        history_entry["baseline_right_cost"] = baseline_right_result.get("cost", 0)
+
+    state.history.append(history_entry)
 
     return InteractResponse(
         session_id=session_id,
@@ -1189,7 +1495,10 @@ async def interact(request: InteractRequest):
         cupid_cost=state.cupid.total_cost,
         baseline_cost=state.baseline.total_cost,
         routing_cost=state.routing_cost,
-        cLeft=c_left, cRight=c_right, bLeft=b_left, bRight=b_right,
+        cLeft=c_left,
+        cRight=c_right,
+        bLeft=b_left,
+        bRight=b_right,
         cLeftStats=get_model_stats(cupid_left_id, mode),
         cRightStats=get_model_stats(cupid_right_id, mode),
         bLeftStats=get_model_stats(baseline_left_id, mode),
@@ -1209,9 +1518,13 @@ async def chat_with_model(request: ChatRequest):
     height = request.height or 1024
 
     if request.system == "cupid":
-        model_id = state.final_cupid_model_id or (state.cupid.arms[0] if state.cupid.arms else get_model_ids(mode)[0])
+        model_id = state.final_cupid_model_id or (
+            state.cupid.arms[0] if state.cupid.arms else get_model_ids(mode)[0]
+        )
     else:
-        model_id = state.final_baseline_model_id or (state.baseline.arms[0] if state.baseline.arms else get_model_ids(mode)[0])
+        model_id = state.final_baseline_model_id or (
+            state.baseline.arms[0] if state.baseline.arms else get_model_ids(mode)[0]
+        )
 
     if mode == ArenaMode.TEXT:
         result = call_openrouter(request.message, model_id)
@@ -1220,8 +1533,12 @@ async def chat_with_model(request: ChatRequest):
         content_type = "text"
     else:
         result = await call_runware(
-            request.message, model_id, width, height,
-            session_id=session_id, algorithm=request.system
+            request.message,
+            model_id,
+            width,
+            height,
+            session_id=session_id,
+            algorithm=request.system,
         )
         response_text = result.get("imageUrl", "")
         cost = result.get("cost", 0)
@@ -1232,7 +1549,12 @@ async def chat_with_model(request: ChatRequest):
     else:
         state.baseline.total_cost += cost
 
-    return ChatResponse(response=response_text, content=response_text, cost=cost, content_type=content_type)
+    return ChatResponse(
+        response=response_text,
+        content=response_text,
+        cost=cost,
+        content_type=content_type,
+    )
 
 
 @app.delete("/session/{session_id}")
@@ -1287,6 +1609,136 @@ async def get_session_data(session_id: str):
         raise HTTPException(status_code=404, detail="Session data not found")
 
 
+@app.post("/save-results")
+async def save_results(request: SaveResultsRequest):
+    """Save complete study results to database."""
+    if not database:
+        return {"success": False, "saved": False, "message": "Database not available"}
+
+    # Determine mode from session_id
+    mode = "text"
+    if request.session_id and "image" in request.session_id:
+        mode = "image"
+
+    # Parse timestamp
+    timestamp = None
+    if request.timestamp:
+        try:
+            timestamp = datetime.fromisoformat(request.timestamp.replace("Z", "+00:00"))
+        except Exception:
+            timestamp = datetime.now()
+    else:
+        timestamp = datetime.now()
+
+    insert_query = """
+    INSERT INTO study_results 
+    (session_id, timestamp, mode, demographics, persona_group, expert_subject, 
+     constraints, budget, initial_preference, final_state, history, open_testing, evaluation)
+    VALUES 
+    (:session_id, :timestamp, :mode, :demographics, :persona_group, :expert_subject,
+     :constraints, :budget, :initial_preference, :final_state, :history, :open_testing, :evaluation)
+    ON CONFLICT (session_id) DO UPDATE SET
+        timestamp = EXCLUDED.timestamp,
+        demographics = EXCLUDED.demographics,
+        persona_group = EXCLUDED.persona_group,
+        expert_subject = EXCLUDED.expert_subject,
+        constraints = EXCLUDED.constraints,
+        budget = EXCLUDED.budget,
+        initial_preference = EXCLUDED.initial_preference,
+        final_state = EXCLUDED.final_state,
+        history = EXCLUDED.history,
+        open_testing = EXCLUDED.open_testing,
+        evaluation = EXCLUDED.evaluation
+    """
+
+    try:
+        await database.execute(
+            insert_query,
+            {
+                "session_id": request.session_id,
+                "timestamp": timestamp,
+                "mode": mode,
+                "demographics": json.dumps(request.demographics)
+                if request.demographics
+                else None,
+                "persona_group": request.persona_group,
+                "expert_subject": request.expert_subject,
+                "constraints": json.dumps(request.constraints)
+                if request.constraints
+                else None,
+                "budget": json.dumps(request.budget) if request.budget else None,
+                "initial_preference": request.initial_preference,
+                "final_state": json.dumps(request.final_state)
+                if request.final_state
+                else None,
+                "history": json.dumps(request.history) if request.history else None,
+                "open_testing": json.dumps(request.open_testing)
+                if request.open_testing
+                else None,
+                "evaluation": json.dumps(request.evaluation)
+                if request.evaluation
+                else None,
+            },
+        )
+
+        # Also save to file as backup
+        output_dir = "./session_data"
+        os.makedirs(output_dir, exist_ok=True)
+        filename = f"{output_dir}/results_{request.session_id}.json"
+        try:
+            with open(filename, "w") as f:
+                json.dump(request.dict(), f, indent=2, default=str)
+        except Exception as e:
+            print(f"Warning: Could not save results to file: {e}")
+
+        return {
+            "success": True,
+            "saved": True,
+            "message": "Results saved successfully",
+            "session_id": request.session_id,
+        }
+    except Exception as e:
+        print(f"Error saving results to database: {e}")
+        return {"success": False, "saved": False, "message": str(e)}
+
+
+@app.get("/study-results")
+async def get_study_results(
+    session_id: Optional[str] = None,
+    persona_group: Optional[str] = None,
+    mode: Optional[str] = None,
+    limit: int = Query(100, le=1000),
+    offset: int = 0,
+):
+    """Retrieve study results from the database."""
+    if not database:
+        raise HTTPException(status_code=503, detail="Database not available")
+
+    query = "SELECT * FROM study_results WHERE 1=1"
+    params = {}
+
+    if session_id:
+        query += " AND session_id = :session_id"
+        params["session_id"] = session_id
+    if persona_group:
+        query += " AND persona_group = :persona_group"
+        params["persona_group"] = persona_group
+    if mode:
+        query += " AND mode = :mode"
+        params["mode"] = mode
+
+    query += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+    params["limit"] = limit
+    params["offset"] = offset
+
+    try:
+        results = await database.fetch_all(query, params)
+        return {"results": [dict(r) for r in results], "count": len(results)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
