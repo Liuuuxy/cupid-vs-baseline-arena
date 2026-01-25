@@ -1,6 +1,6 @@
 """
 FastAPI Backend for Model Selection User Study
-- Text Mode: Full persona groups (traditional/expert/preference) with constraints
+- Text Mode: Full persona groups (traditional/expert/preference) with constraints (original)
 - Image Mode: Preference-only (simplified)
 Compares CUPID algorithm vs LMArena-style Baseline
 """
@@ -21,12 +21,11 @@ import torch
 import requests
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # Database imports
 try:
     from databases import Database
-
     DATABASE_AVAILABLE = True
 except ImportError:
     DATABASE_AVAILABLE = False
@@ -39,7 +38,6 @@ try:
         PairwiseGP,
         PairwiseLaplaceMarginalLogLikelihood,
     )
-
     BOTORCH_AVAILABLE = True
 except ImportError:
     BOTORCH_AVAILABLE = False
@@ -48,8 +46,8 @@ except ImportError:
 
 # ================== Mode Enum ==================
 class ArenaMode(str, Enum):
-    TEXT = "text"  # LLM text generation
-    IMAGE = "image"  # Text-to-image generation
+    TEXT = "text"
+    IMAGE = "image"
 
 
 # ================== Configuration ==================
@@ -70,10 +68,9 @@ RUNWARE_HEADERS = {
 }
 
 # Model pool paths
-MODEL_POOL_LLM_PATH = os.environ.get("MODEL_POOL_LLM_PATH", "./model-pool-llm.csv")
-MODEL_POOL_IMAGE_PATH = os.environ.get(
-    "MODEL_POOL_IMAGE_PATH", "./image_model_pool.csv"
-)
+MODEL_POOL_PATH = os.environ.get("MODEL_POOL_PATH", "./model-pool.csv")
+MODEL_POOL_LOCAL = os.environ.get("MODEL_POOL_LOCAL", "./model-pool.csv")
+MODEL_POOL_IMAGE_PATH = os.environ.get("MODEL_POOL_IMAGE_PATH", "./image_model_pool.csv")
 
 # Database configuration
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
@@ -84,37 +81,28 @@ database = Database(DATABASE_URL) if DATABASE_URL and DATABASE_AVAILABLE else No
 
 
 # ================== Load Model Pools ==================
-def _load_llm_model_pool() -> pd.DataFrame:
-    """Load LLM model pool CSV."""
-    if os.path.exists(MODEL_POOL_LLM_PATH):
-        df = pd.read_csv(MODEL_POOL_LLM_PATH)
-    elif os.path.exists("./model-pool.csv"):
-        df = pd.read_csv("./model-pool.csv")
+def _load_model_pool() -> pd.DataFrame:
+    """Load LLM model pool CSV (original)."""
+    if os.path.exists(MODEL_POOL_PATH):
+        df = pd.read_csv(MODEL_POOL_PATH)
+    elif os.path.exists(MODEL_POOL_LOCAL):
+        df = pd.read_csv(MODEL_POOL_LOCAL)
     else:
-        df = pd.DataFrame(
-            {
-                "id": [1, 2, 3, 4, 5],
-                "model-id": [
-                    "openai/gpt-4o-mini",
-                    "anthropic/claude-3-haiku",
-                    "google/gemini-flash-1.5",
-                    "meta-llama/llama-3.1-8b-instruct",
-                    "mistralai/mistral-7b-instruct",
-                ],
-                "model": [
-                    "GPT-4o Mini",
-                    "Claude 3 Haiku",
-                    "Gemini Flash",
-                    "Llama 3.1 8B",
-                    "Mistral 7B",
-                ],
-                "intelligence": [85, 82, 80, 75, 72],
-                "speed": [90, 88, 92, 85, 87],
-                "input-price": [0.15, 0.25, 0.075, 0.05, 0.05],
-                "output-price": [0.60, 1.25, 0.30, 0.05, 0.05],
-            }
-        )
-
+        df = pd.DataFrame({
+            "id": [1, 2, 3, 4, 5],
+            "model-id": [
+                "openai/gpt-4o-mini",
+                "anthropic/claude-3-haiku",
+                "google/gemini-flash-1.5",
+                "meta-llama/llama-3.1-8b-instruct",
+                "mistralai/mistral-7b-instruct",
+            ],
+            "model": ["GPT-4o Mini", "Claude 3 Haiku", "Gemini Flash", "Llama 3.1 8B", "Mistral 7B"],
+            "intelligence": [85, 82, 80, 75, 72],
+            "speed": [90, 88, 92, 85, 87],
+            "input-price": [0.15, 0.25, 0.075, 0.05, 0.05],
+            "output-price": [0.60, 1.25, 0.30, 0.05, 0.05],
+        })
     drop_cols = [c for c in df.columns if c.startswith("Unnamed")]
     if drop_cols:
         df = df.drop(columns=drop_cols)
@@ -126,44 +114,20 @@ def _load_image_model_pool() -> pd.DataFrame:
     if os.path.exists(MODEL_POOL_IMAGE_PATH):
         df = pd.read_csv(MODEL_POOL_IMAGE_PATH)
     else:
-        # Mock image model pool matching user's format
-        df = pd.DataFrame(
-            {
-                "id": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-                "model-id": [
-                    "openai:1@1",
-                    "openai:2@3",
-                    "openai:2@2",
-                    "openai:1@2",
-                    "openai:4@1",
-                    "google:2@3",
-                    "google:2@1",
-                    "google:2@2",
-                    "google:1@2",
-                    "google:1@1",
-                    "google:4@1",
-                    "google:4@2",
-                ],
-                "model": [
-                    "GPT Image 1",
-                    "DallE 3",
-                    "DallE 2",
-                    "GPT Image 1 Mini",
-                    "GPT Image 1.5",
-                    "Imagen 4.0 Fast",
-                    "Imagen 4.0 Preview",
-                    "Imagen 4.0 Ultra",
-                    "Imagen 3.0 Fast",
-                    "Imagen 3.0",
-                    "Gemini Flash Image 2.5 (Nano Banana)",
-                    "Nano Banana Pro",
-                ],
-            }
-        )
-
-    # Clean column names (strip whitespace)
+        df = pd.DataFrame({
+            "id": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+            "model-id": [
+                "openai:1@1", "openai:2@3", "openai:2@2", "openai:1@2",
+                "openai:4@1", "google:2@3", "google:2@1", "google:2@2",
+                "google:1@2", "google:1@1", "google:4@1", "google:4@2",
+            ],
+            "model": [
+                "GPT Image 1", "DallE 3", "DallE 2", "GPT Image 1 Mini",
+                "GPT Image 1.5", "Imagen 4.0 Fast", "Imagen 4.0 Preview", "Imagen 4.0 Ultra",
+                "Imagen 3.0 Fast", "Imagen 3.0", "Gemini Flash Image 2.5 (Nano Banana)", "Nano Banana Pro",
+            ],
+        })
     df.columns = df.columns.str.strip()
-
     drop_cols = [c for c in df.columns if c.startswith("Unnamed")]
     if drop_cols:
         df = df.drop(columns=drop_cols)
@@ -171,30 +135,29 @@ def _load_image_model_pool() -> pd.DataFrame:
 
 
 # Load both model pools
-MODEL_POOL_LLM = _load_llm_model_pool()
+MODEL_POOL = _load_model_pool()
 MODEL_POOL_IMAGE = _load_image_model_pool()
 
 # Validate model pools
-for pool_name, pool in [("LLM", MODEL_POOL_LLM), ("Image", MODEL_POOL_IMAGE)]:
+for pool_name, pool in [("LLM", MODEL_POOL), ("Image", MODEL_POOL_IMAGE)]:
     if "id" not in pool.columns:
         raise RuntimeError(f"{pool_name} model pool must contain an 'id' column.")
     if "model-id" not in pool.columns:
         raise RuntimeError(f"{pool_name} model pool must contain a 'model-id' column.")
 
-# Model IDs per mode
-MODEL_IDS_LLM: List[int] = list(range(1, MODEL_POOL_LLM.shape[0] + 1))
+MODEL_IDS: List[int] = list(range(1, MODEL_POOL.shape[0] + 1))
 MODEL_IDS_IMAGE: List[int] = list(range(1, MODEL_POOL_IMAGE.shape[0] + 1))
 
 
 def get_model_pool(mode: ArenaMode) -> pd.DataFrame:
-    return MODEL_POOL_LLM if mode == ArenaMode.TEXT else MODEL_POOL_IMAGE
+    return MODEL_POOL if mode == ArenaMode.TEXT else MODEL_POOL_IMAGE
 
 
 def get_model_ids(mode: ArenaMode) -> List[int]:
-    return MODEL_IDS_LLM if mode == ArenaMode.TEXT else MODEL_IDS_IMAGE
+    return MODEL_IDS if mode == ArenaMode.TEXT else MODEL_IDS_IMAGE
 
 
-def _model_name_from_id(model_id: int, mode: ArenaMode) -> str:
+def _model_name_from_id(model_id: int, mode: ArenaMode = ArenaMode.TEXT) -> str:
     pool = get_model_pool(mode)
     row = pool.loc[pool["id"] == int(model_id)]
     if row.empty:
@@ -202,7 +165,7 @@ def _model_name_from_id(model_id: int, mode: ArenaMode) -> str:
     return str(row["model-id"].iloc[0])
 
 
-def _model_display_name_from_id(model_id: int, mode: ArenaMode) -> str:
+def _model_display_name_from_id(model_id: int, mode: ArenaMode = ArenaMode.TEXT) -> str:
     pool = get_model_pool(mode)
     row = pool.loc[pool["id"] == int(model_id)]
     if row.empty:
@@ -212,14 +175,21 @@ def _model_display_name_from_id(model_id: int, mode: ArenaMode) -> str:
     return str(row["model-id"].iloc[0])
 
 
+def _id_to_index(model_id: int, mode: ArenaMode = ArenaMode.TEXT) -> int:
+    num_models = len(get_model_ids(mode))
+    idx = int(model_id) - 1
+    if idx < 0 or idx >= num_models:
+        raise ValueError(f"Model ID {model_id} is out of range [1, {num_models}]")
+    return idx
+
+
 # ================== API Call Functions ==================
 def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
-    """Generate LLM text response via OpenRouter."""
+    """Generate LLM text response via OpenRouter (original)."""
     model_name = _model_name_from_id(model_id, ArenaMode.TEXT)
-    pool = get_model_pool(ArenaMode.TEXT)
-
+    
     try:
-        row = pool[pool["id"] == model_id].iloc[0]
+        row = MODEL_POOL[MODEL_POOL["id"] == model_id].iloc[0]
         input_price = float(row.get("input-price", 0) or 0)
         output_price = float(row.get("output-price", 0) or 0)
     except (IndexError, KeyError):
@@ -228,9 +198,7 @@ def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
     if not OPENROUTER_API_KEY:
         mock_prompt_tokens = int(len(prompt.split()) * 1.3) + 30
         mock_completion_tokens = 150
-        mock_cost = (mock_prompt_tokens * input_price / 1_000_000) + (
-            mock_completion_tokens * output_price / 1_000_000
-        )
+        mock_cost = (mock_prompt_tokens * input_price / 1_000_000) + (mock_completion_tokens * output_price / 1_000_000)
         return {
             "text": f"[Mock response from {_model_display_name_from_id(model_id, ArenaMode.TEXT)}] This is a simulated response. Your query: {prompt[:100]}...",
             "cost": mock_cost,
@@ -241,29 +209,19 @@ def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
     payload = {
         "model": model_name,
         "messages": [
-            {
-                "role": "system",
-                "content": "You are a helpful AI assistant. Answer concisely and accurately.",
-            },
+            {"role": "system", "content": "You are a helpful AI assistant. Answer concisely and accurately."},
             {"role": "user", "content": prompt},
         ],
         "usage": {"include": True},
     }
 
     try:
-        response = requests.post(
-            OPENROUTER_URL,
-            headers=OPENROUTER_HEADERS,
-            data=json.dumps(payload),
-            timeout=60,
-        )
+        response = requests.post(OPENROUTER_URL, headers=OPENROUTER_HEADERS, data=json.dumps(payload), timeout=60)
         response.raise_for_status()
         data = response.json()
-
         text = ""
         if isinstance(data.get("choices"), list) and data["choices"]:
             text = data["choices"][0].get("message", {}).get("content", "")
-
         usage = data.get("usage", {})
         return {
             "text": text,
@@ -272,24 +230,14 @@ def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
             "completion_tokens": int(usage.get("completion_tokens", 0) or 0),
         }
     except Exception as e:
-        return {
-            "text": f"[Error: {str(e)}]",
-            "cost": 0.0,
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "error": str(e),
-        }
+        return {"text": f"[Error: {str(e)}]", "cost": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "error": str(e)}
 
 
-def call_runware(
-    prompt: str, model_id: int, width: int = 1024, height: int = 1024
-) -> Dict[str, Any]:
+def call_runware(prompt: str, model_id: int, width: int = 1024, height: int = 1024) -> Dict[str, Any]:
     """Generate image via Runware API."""
     model_name = _model_name_from_id(model_id, ArenaMode.IMAGE)
     display_name = _model_display_name_from_id(model_id, ArenaMode.IMAGE)
     task_uuid = str(uuid.uuid4())
-
-    steps = 30
     price_per_image = 0.002
 
     if not RUNWARE_API_KEY:
@@ -300,29 +248,24 @@ def call_runware(
             "taskUUID": task_uuid,
         }
 
-    payload = [
-        {
-            "taskType": "imageInference",
-            "taskUUID": task_uuid,
-            "model": model_name,
-            "positivePrompt": prompt,
-            "width": width,
-            "height": height,
-            "steps": steps,
-            "numberResults": 1,
-            "outputType": "URL",
-            "outputFormat": "JPG",
-            "includeCost": True,
-        }
-    ]
+    payload = [{
+        "taskType": "imageInference",
+        "taskUUID": task_uuid,
+        "model": model_name,
+        "positivePrompt": prompt,
+        "width": width,
+        "height": height,
+        "steps": 30,
+        "numberResults": 1,
+        "outputType": "URL",
+        "outputFormat": "JPG",
+        "includeCost": True,
+    }]
 
     try:
-        response = requests.post(
-            RUNWARE_URL, headers=RUNWARE_HEADERS, data=json.dumps(payload), timeout=120
-        )
+        response = requests.post(RUNWARE_URL, headers=RUNWARE_HEADERS, data=json.dumps(payload), timeout=120)
         response.raise_for_status()
         data = response.json()
-
         if "data" in data and len(data["data"]) > 0:
             result = data["data"][0]
             return {
@@ -333,29 +276,13 @@ def call_runware(
             }
         else:
             errors = data.get("errors", [])
-            error_msg = (
-                errors[0].get("message", "Unknown error")
-                if errors
-                else "No image returned"
-            )
-            return {
-                "imageUrl": "",
-                "cost": 0.0,
-                "seed": 0,
-                "taskUUID": task_uuid,
-                "error": error_msg,
-            }
+            error_msg = errors[0].get("message", "Unknown error") if errors else "No image returned"
+            return {"imageUrl": "", "cost": 0.0, "seed": 0, "taskUUID": task_uuid, "error": error_msg}
     except Exception as e:
-        return {
-            "imageUrl": "",
-            "cost": 0.0,
-            "seed": 0,
-            "taskUUID": task_uuid,
-            "error": str(e),
-        }
+        return {"imageUrl": "", "cost": 0.0, "seed": 0, "taskUUID": task_uuid, "error": str(e)}
 
 
-# ================== CUPID Algorithm Components ==================
+# ================== CUPID Algorithm Components (Original) ==================
 if BOTORCH_AVAILABLE:
     torch.set_default_dtype(torch.double)
 
@@ -370,9 +297,7 @@ if BOTORCH_AVAILABLE:
         return e
 
     def build_point(arm_id: int, ctx_id: int, num_models: int) -> torch.Tensor:
-        return torch.cat(
-            [encode_arm(arm_id, num_models), encode_context(ctx_id, num_models)], dim=0
-        )
+        return torch.cat([encode_arm(arm_id, num_models), encode_context(ctx_id, num_models)], dim=0)
 
     def block_features(arms: List[int], ctx_id: int, num_models: int) -> torch.Tensor:
         return torch.stack([build_point(a, ctx_id, num_models) for a in arms], dim=0)
@@ -385,12 +310,8 @@ if BOTORCH_AVAILABLE:
             dummy = torch.tensor([[0, 1]], dtype=torch.long, device=train_X.device)
             return PairwiseGP(train_X, dummy)
 
-    def fit_model(
-        train_X: torch.Tensor, comps_wl, min_fit_pairs: int = 5
-    ) -> PairwiseGP:
-        if comps_wl is None or (
-            isinstance(comps_wl, torch.Tensor) and comps_wl.numel() == 0
-        ):
+    def fit_model(train_X: torch.Tensor, comps_wl, min_fit_pairs: int = 5) -> PairwiseGP:
+        if comps_wl is None or (isinstance(comps_wl, torch.Tensor) and comps_wl.numel() == 0):
             return _safe_init_model(train_X)
         model = PairwiseGP(train_X, comps_wl)
         if comps_wl.shape[0] >= min_fit_pairs:
@@ -409,9 +330,7 @@ if BOTORCH_AVAILABLE:
 
 class DiscreteBelief:
     def __init__(self, n: int):
-        self.logp = (
-            torch.zeros(n, dtype=torch.double) if BOTORCH_AVAILABLE else np.zeros(n)
-        )
+        self.logp = torch.zeros(n, dtype=torch.double) if BOTORCH_AVAILABLE else np.zeros(n)
 
     def probs(self):
         if BOTORCH_AVAILABLE:
@@ -430,18 +349,39 @@ class DiscreteBelief:
             self.logp = self.logp + np.array(log_lik)
 
 
-def _base_ucb(mu, cov, beta: float, cooldown_vec=None, cooldown_w: float = 0.0):
+def _calc_spread(vec, method: str = "iqr") -> float:
+    if BOTORCH_AVAILABLE:
+        if vec.numel() < 2:
+            return 0.0
+        if method == "stdev":
+            return float(max(torch.std(vec, unbiased=False).item(), 0.0))
+        q = torch.quantile(vec, torch.tensor([0.25, 0.75], dtype=vec.dtype))
+        return float((q[1] - q[0]).clamp_min(0.0).item())
+    else:
+        if len(vec) < 2:
+            return 0.0
+        if method == "stdev":
+            return float(max(np.std(vec), 0.0))
+        q25, q75 = np.percentile(vec, [25, 75])
+        return float(max(q75 - q25, 0.0))
+
+
+def _base_ucb(mu, cov, beta: float, cooldown_vec=None, cooldown_w: float = 0.0, cost_vec=None, penalty_p: float = 0.0):
     if BOTORCH_AVAILABLE:
         var = cov.diag().clamp_min(0.0)
         base = mu + beta * var.sqrt()
         if cooldown_vec is not None and cooldown_w > 0.0:
             base = base - cooldown_w * cooldown_vec.to(base)
+        if cost_vec is not None and penalty_p > 0.0:
+            base = base - penalty_p * cost_vec.to(base)
         return base
     else:
         var = np.maximum(np.diag(cov), 0.0)
         base = mu + beta * np.sqrt(var)
         if cooldown_vec is not None and cooldown_w > 0.0:
             base = base - cooldown_w * np.array(cooldown_vec)
+        if cost_vec is not None and penalty_p > 0.0:
+            base = base - penalty_p * np.array(cost_vec)
         return base
 
 
@@ -464,13 +404,7 @@ def bt_grad(theta: np.ndarray, wins: np.ndarray, N: np.ndarray) -> np.ndarray:
     return grad
 
 
-def fit_bt(
-    theta_init: np.ndarray,
-    wins: np.ndarray,
-    N: np.ndarray,
-    steps: int = 50,
-    lr: float = 0.01,
-) -> np.ndarray:
+def fit_bt(theta_init: np.ndarray, wins: np.ndarray, N: np.ndarray, steps: int = 50, lr: float = 0.01) -> np.ndarray:
     theta = theta_init.copy()
     if wins.sum() == 0:
         theta -= theta.mean()
@@ -482,19 +416,12 @@ def fit_bt(
     return theta
 
 
-def choose_pair_baseline(
-    theta_hat: np.ndarray,
-    wins: np.ndarray,
-    N: np.ndarray,
-    alpha_score: float = 1.0,
-    alpha_unc: float = 1.0,
-    tau: float = 1.0,
-    eps_random: float = 0.05,
-) -> Tuple[int, int]:
+def choose_pair_baseline(theta_hat: np.ndarray, wins: np.ndarray, N: np.ndarray,
+                         alpha_score: float = 1.0, alpha_unc: float = 1.0,
+                         tau: float = 1.0, eps_random: float = 0.05) -> Tuple[int, int]:
     K = theta_hat.shape[0]
     counts_per_arm = N.sum(axis=1)
     s = 1.0 / np.sqrt(np.maximum(counts_per_arm, 1.0))
-
     centered_theta = theta_hat - theta_hat.mean()
     base = np.exp(alpha_score * centered_theta) * (1.0 + alpha_unc * s)
     base = np.maximum(base, 1e-8)
@@ -523,7 +450,7 @@ def choose_pair_baseline(
 
 # ================== Session State Management ==================
 class CUPIDState:
-    def __init__(self, arms: List[int], contexts: List[int], mode: ArenaMode):
+    def __init__(self, arms: List[int], contexts: List[int], mode: ArenaMode = ArenaMode.TEXT):
         self.arms = arms
         self.contexts = contexts
         self.K = len(arms)
@@ -534,9 +461,7 @@ class CUPIDState:
         if BOTORCH_AVAILABLE:
             prior_anchor_ctx = contexts[0]
             self.train_X = block_features(arms, prior_anchor_ctx, self.num_models)
-            self.index_of: Dict[Tuple[int, int], int] = {
-                (a_idx, 0): a_idx for a_idx in range(self.K)
-            }
+            self.index_of: Dict[Tuple[int, int], int] = {(a_idx, 0): a_idx for a_idx in range(self.K)}
             self.comps_wl = None
             self.model = fit_model(self.train_X, self.comps_wl)
 
@@ -546,6 +471,9 @@ class CUPIDState:
         self.current_right_idx: Optional[int] = None
         self.current_ctx_idx: Optional[int] = None
         self.beta = 1.5
+        self.rho = 1.30
+        self.kappa = 1.60
+        self.spread_method = "iqr"
         self.min_fit_pairs = 5
         self.total_cost = 0.0
         self.round_count = 0
@@ -553,34 +481,26 @@ class CUPIDState:
 
     @property
     def current_left_id(self) -> Optional[int]:
-        if self.current_left_idx is not None and 0 <= self.current_left_idx < len(
-            self.arms
-        ):
+        if self.current_left_idx is not None and 0 <= self.current_left_idx < len(self.arms):
             return self.arms[self.current_left_idx]
         return None
 
     @property
     def current_right_id(self) -> Optional[int]:
-        if self.current_right_idx is not None and 0 <= self.current_right_idx < len(
-            self.arms
-        ):
+        if self.current_right_idx is not None and 0 <= self.current_right_idx < len(self.arms):
             return self.arms[self.current_right_idx]
         return None
 
     def select_pair(self, direction_text: str = "") -> Tuple[int, int]:
         if not BOTORCH_AVAILABLE:
             import random
-
             indices = list(range(self.K))
             i = random.choice(indices)
             j = random.choice([x for x in indices if x != i])
-            self.current_left_idx, self.current_right_idx, self.current_ctx_idx = (
-                i,
-                j,
-                0,
-            )
+            self.current_left_idx, self.current_right_idx, self.current_ctx_idx = i, j, 0
             return self.arms[i], self.arms[j]
 
+        cost_vec = torch.zeros(self.K, dtype=torch.double)
         cooldown_vec = torch.zeros(self.K, dtype=torch.double)
         c = Counter(self.recent_arms)
         for idx, cnt in c.items():
@@ -591,10 +511,8 @@ class CUPIDState:
         expected_base = torch.zeros(self.K, dtype=torch.double)
 
         for cidx, ctx in enumerate(self.contexts):
-            mu, cov = posterior_stats(
-                self.model, block_features(self.arms, ctx, self.num_models)
-            )
-            base_ctx = _base_ucb(mu, cov, self.beta, cooldown_vec, 0.0)
+            mu, cov = posterior_stats(self.model, block_features(self.arms, ctx, self.num_models))
+            base_ctx = _base_ucb(mu, cov, self.beta, cooldown_vec, 0.0, cost_vec, 0.0)
             expected_base += p[cidx] * base_ctx
 
         ucb = expected_base
@@ -630,17 +548,10 @@ class CUPIDState:
                     self.train_X = torch.cat([self.train_X, feat.unsqueeze(0)], dim=0)
 
         map_ctx = self.belief.map()
-        idx_w, idx_l = (
-            self.index_of[(winner_arm, map_ctx)],
-            self.index_of[(loser_arm, map_ctx)],
-        )
+        idx_w, idx_l = self.index_of[(winner_arm, map_ctx)], self.index_of[(loser_arm, map_ctx)]
 
         new_comp = torch.tensor([[idx_w, idx_l]], dtype=torch.long)
-        self.comps_wl = (
-            new_comp
-            if self.comps_wl is None
-            else torch.cat([self.comps_wl, new_comp], dim=0)
-        )
+        self.comps_wl = new_comp if self.comps_wl is None else torch.cat([self.comps_wl, new_comp], dim=0)
         self.model = fit_model(self.train_X, self.comps_wl, self.min_fit_pairs)
 
         self.recent_arms.extend([winner_arm, loser_arm])
@@ -648,7 +559,7 @@ class CUPIDState:
 
 
 class BaselineState:
-    def __init__(self, arms: List[int], mode: ArenaMode):
+    def __init__(self, arms: List[int], mode: ArenaMode = ArenaMode.TEXT):
         self.arms = arms
         self.K = len(arms)
         self.mode = mode
@@ -663,19 +574,11 @@ class BaselineState:
 
     @property
     def current_left_id(self) -> Optional[int]:
-        return (
-            self.arms[self.current_i]
-            if self.current_i is not None and 0 <= self.current_i < len(self.arms)
-            else None
-        )
+        return self.arms[self.current_i] if self.current_i is not None and 0 <= self.current_i < len(self.arms) else None
 
     @property
     def current_right_id(self) -> Optional[int]:
-        return (
-            self.arms[self.current_j]
-            if self.current_j is not None and 0 <= self.current_j < len(self.arms)
-            else None
-        )
+        return self.arms[self.current_j] if self.current_j is not None and 0 <= self.current_j < len(self.arms) else None
 
     def select_pair(self) -> Tuple[int, int]:
         i, j = choose_pair_baseline(self.theta, self.wins, self.N)
@@ -696,7 +599,7 @@ class BaselineState:
 
 
 class SessionState:
-    def __init__(self, mode: ArenaMode):
+    def __init__(self, mode: ArenaMode = ArenaMode.TEXT):
         self.mode = mode
         model_ids = get_model_ids(mode)
         self.cupid = CUPIDState(model_ids, model_ids, mode)
@@ -718,7 +621,8 @@ completed_sessions: Dict[str, Dict] = {}
 class ModelResponse(BaseModel):
     model_id: int
     model_name: str
-    content: str
+    text: str  # For text mode
+    content: Optional[str] = None  # For image mode (imageUrl)
     cost: float
     content_type: str = "text"
 
@@ -727,6 +631,7 @@ class InteractRequest(BaseModel):
     session_id: Optional[str] = None
     prompt: str
     mode: ArenaMode = ArenaMode.TEXT
+    previous_vote: Optional[str] = None
     cupid_vote: Optional[str] = None
     baseline_vote: Optional[str] = None
     feedback_text: Optional[str] = None
@@ -743,7 +648,7 @@ class InteractRequest(BaseModel):
 class InteractResponse(BaseModel):
     session_id: str
     round: int
-    mode: ArenaMode
+    mode: ArenaMode = ArenaMode.TEXT
     total_cost: float
     cupid_cost: float
     baseline_cost: float
@@ -752,6 +657,10 @@ class InteractResponse(BaseModel):
     cRight: ModelResponse
     bLeft: ModelResponse
     bRight: ModelResponse
+    cLeftStats: Optional[Dict] = None
+    cRightStats: Optional[Dict] = None
+    bLeftStats: Optional[Dict] = None
+    bRightStats: Optional[Dict] = None
 
 
 class ChatRequest(BaseModel):
@@ -764,21 +673,27 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    content: str
+    response: str
+    content: Optional[str] = None
     cost: float
-    content_type: str
+    content_type: str = "text"
 
 
 class SaveSessionRequest(BaseModel):
     demographics: Optional[Dict] = None
+    persona: Optional[str] = None
     persona_group: Optional[str] = None
     expert_subject: Optional[str] = None
     constraints: Optional[List[Dict]] = None
     budget: Optional[Dict] = None
     history: Optional[List[Dict]] = None
     evaluation: Optional[Dict] = None
+    final_cost: Optional[float] = None
     final_cost_a: Optional[float] = None
     final_cost_b: Optional[float] = None
+    terminated_early: Optional[bool] = None
+    open_test_rounds_a: Optional[int] = None
+    open_test_rounds_b: Optional[int] = None
     side_by_side_rounds: Optional[int] = None
 
 
@@ -806,47 +721,55 @@ async def shutdown():
         await database.disconnect()
 
 
+def get_model_stats(model_id: int, mode: ArenaMode = ArenaMode.TEXT) -> Optional[Dict]:
+    pool = get_model_pool(mode)
+    try:
+        row = pool[pool["id"] == model_id].iloc[0]
+        if mode == ArenaMode.TEXT:
+            return {
+                "id": model_id,
+                "intelligence": int(row.get("intelligence")) if pd.notna(row.get("intelligence")) else None,
+                "speed": int(row.get("speed")) if pd.notna(row.get("speed")) else None,
+                "reasoning": int(row.get("reasoning")) if pd.notna(row.get("reasoning")) else None,
+                "input_price": float(row.get("input-price")) if pd.notna(row.get("input-price")) else None,
+                "output_price": float(row.get("output-price")) if pd.notna(row.get("output-price")) else None,
+                "context_window": int(row.get("context_window")) if pd.notna(row.get("context_window")) else None,
+                "max_output": int(row.get("max_output")) if pd.notna(row.get("max_output")) else None,
+            }
+        else:
+            return {"id": model_id, "model": str(row.get("model", ""))}
+    except (IndexError, KeyError):
+        return None
+
+
 @app.get("/")
 async def root():
-    return {"message": "Model Selection Arena API", "modes": ["text", "image"]}
+    return {"message": "Model Selection Arena API - Text & Image", "modes": ["text", "image"]}
 
 
 @app.get("/health")
 async def health():
-    return {
-        "status": "healthy",
-        "llm_models": len(MODEL_IDS_LLM),
-        "image_models": len(MODEL_IDS_IMAGE),
-    }
+    return {"status": "healthy", "llm_models": len(MODEL_IDS), "image_models": len(MODEL_IDS_IMAGE)}
 
 
 @app.get("/model-pool-stats")
 async def get_model_pool_stats(mode: ArenaMode = Query(ArenaMode.TEXT)):
     pool = get_model_pool(mode)
     models = []
-
     for _, row in pool.iterrows():
         if mode == ArenaMode.TEXT:
-            models.append(
-                {
-                    "id": int(row["id"]),
-                    "intelligence": int(row.get("intelligence"))
-                    if pd.notna(row.get("intelligence"))
-                    else None,
-                    "speed": int(row.get("speed"))
-                    if pd.notna(row.get("speed"))
-                    else None,
-                    "input_price": float(row.get("input-price"))
-                    if pd.notna(row.get("input-price"))
-                    else None,
-                    "output_price": float(row.get("output-price"))
-                    if pd.notna(row.get("output-price"))
-                    else None,
-                }
-            )
+            models.append({
+                "id": int(row["id"]),
+                "intelligence": int(row.get("intelligence")) if pd.notna(row.get("intelligence")) else None,
+                "speed": int(row.get("speed")) if pd.notna(row.get("speed")) else None,
+                "reasoning": int(row.get("reasoning")) if pd.notna(row.get("reasoning")) else None,
+                "input_price": float(row.get("input-price")) if pd.notna(row.get("input-price")) else None,
+                "output_price": float(row.get("output-price")) if pd.notna(row.get("output-price")) else None,
+                "context_window": int(row.get("context_window")) if pd.notna(row.get("context_window")) else None,
+                "max_output": int(row.get("max_output")) if pd.notna(row.get("max_output")) else None,
+            })
         else:
             models.append({"id": int(row["id"]), "model": str(row.get("model", ""))})
-
     return {"models": models, "count": len(models), "mode": mode}
 
 
@@ -867,20 +790,12 @@ async def interact(request: InteractRequest):
         if request.cupid_vote:
             winner_is_left = request.cupid_vote == "left"
             state.cupid.update_with_vote(winner_is_left)
-            state.final_cupid_model_id = (
-                state.cupid.current_left_id
-                if winner_is_left
-                else state.cupid.current_right_id
-            )
+            state.final_cupid_model_id = state.cupid.current_left_id if winner_is_left else state.cupid.current_right_id
 
         if request.baseline_vote:
             winner_is_left = request.baseline_vote == "left"
             state.baseline.update_with_vote(winner_is_left)
-            state.final_baseline_model_id = (
-                state.baseline.current_left_id
-                if winner_is_left
-                else state.baseline.current_right_id
-            )
+            state.final_baseline_model_id = state.baseline.current_left_id if winner_is_left else state.baseline.current_right_id
     else:
         session_id = f"sess_{mode.value}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
         state = SessionState(mode)
@@ -895,86 +810,58 @@ async def interact(request: InteractRequest):
     cupid_left_id, cupid_right_id = state.cupid.select_pair(request.feedback_text or "")
     baseline_left_id, baseline_right_id = state.baseline.select_pair()
 
-    loop = asyncio.get_event_loop()
-
+    # Generate responses based on mode
     if mode == ArenaMode.TEXT:
-        results = await asyncio.gather(
-            loop.run_in_executor(None, call_openrouter, prompt, cupid_left_id),
-            loop.run_in_executor(None, call_openrouter, prompt, cupid_right_id),
-            loop.run_in_executor(None, call_openrouter, prompt, baseline_left_id),
-            loop.run_in_executor(None, call_openrouter, prompt, baseline_right_id),
-        )
-        cupid_left_result = {
-            "content": results[0].get("text", ""),
-            "cost": results[0].get("cost", 0),
-        }
-        cupid_right_result = {
-            "content": results[1].get("text", ""),
-            "cost": results[1].get("cost", 0),
-        }
-        baseline_left_result = {
-            "content": results[2].get("text", ""),
-            "cost": results[2].get("cost", 0),
-        }
-        baseline_right_result = {
-            "content": results[3].get("text", ""),
-            "cost": results[3].get("cost", 0),
-        }
-        content_type = "text"
+        cupid_left_result = call_openrouter(prompt, cupid_left_id)
+        cupid_right_result = call_openrouter(prompt, cupid_right_id)
+        baseline_left_result = call_openrouter(prompt, baseline_left_id)
+        baseline_right_result = call_openrouter(prompt, baseline_right_id)
+        
+        c_left = ModelResponse(model_id=cupid_left_id, model_name=_model_display_name_from_id(cupid_left_id, mode),
+                              text=cupid_left_result["text"], cost=cupid_left_result["cost"], content_type="text")
+        c_right = ModelResponse(model_id=cupid_right_id, model_name=_model_display_name_from_id(cupid_right_id, mode),
+                               text=cupid_right_result["text"], cost=cupid_right_result["cost"], content_type="text")
+        b_left = ModelResponse(model_id=baseline_left_id, model_name=_model_display_name_from_id(baseline_left_id, mode),
+                              text=baseline_left_result["text"], cost=baseline_left_result["cost"], content_type="text")
+        b_right = ModelResponse(model_id=baseline_right_id, model_name=_model_display_name_from_id(baseline_right_id, mode),
+                               text=baseline_right_result["text"], cost=baseline_right_result["cost"], content_type="text")
     else:
-        results = await asyncio.gather(
-            loop.run_in_executor(
-                None, call_runware, prompt, cupid_left_id, width, height
-            ),
-            loop.run_in_executor(
-                None, call_runware, prompt, cupid_right_id, width, height
-            ),
-            loop.run_in_executor(
-                None, call_runware, prompt, baseline_left_id, width, height
-            ),
-            loop.run_in_executor(
-                None, call_runware, prompt, baseline_right_id, width, height
-            ),
-        )
-        cupid_left_result = {
-            "content": results[0].get("imageUrl", ""),
-            "cost": results[0].get("cost", 0),
-        }
-        cupid_right_result = {
-            "content": results[1].get("imageUrl", ""),
-            "cost": results[1].get("cost", 0),
-        }
-        baseline_left_result = {
-            "content": results[2].get("imageUrl", ""),
-            "cost": results[2].get("cost", 0),
-        }
-        baseline_right_result = {
-            "content": results[3].get("imageUrl", ""),
-            "cost": results[3].get("cost", 0),
-        }
-        content_type = "image"
+        cupid_left_result = call_runware(prompt, cupid_left_id, width, height)
+        cupid_right_result = call_runware(prompt, cupid_right_id, width, height)
+        baseline_left_result = call_runware(prompt, baseline_left_id, width, height)
+        baseline_right_result = call_runware(prompt, baseline_right_id, width, height)
+        
+        c_left = ModelResponse(model_id=cupid_left_id, model_name=_model_display_name_from_id(cupid_left_id, mode),
+                              text=cupid_left_result["imageUrl"], content=cupid_left_result["imageUrl"],
+                              cost=cupid_left_result["cost"], content_type="image")
+        c_right = ModelResponse(model_id=cupid_right_id, model_name=_model_display_name_from_id(cupid_right_id, mode),
+                               text=cupid_right_result["imageUrl"], content=cupid_right_result["imageUrl"],
+                               cost=cupid_right_result["cost"], content_type="image")
+        b_left = ModelResponse(model_id=baseline_left_id, model_name=_model_display_name_from_id(baseline_left_id, mode),
+                              text=baseline_left_result["imageUrl"], content=baseline_left_result["imageUrl"],
+                              cost=baseline_left_result["cost"], content_type="image")
+        b_right = ModelResponse(model_id=baseline_right_id, model_name=_model_display_name_from_id(baseline_right_id, mode),
+                               text=baseline_right_result["imageUrl"], content=baseline_right_result["imageUrl"],
+                               cost=baseline_right_result["cost"], content_type="image")
 
-    state.cupid.total_cost += cupid_left_result["cost"] + cupid_right_result["cost"]
-    state.baseline.total_cost += (
-        baseline_left_result["cost"] + baseline_right_result["cost"]
-    )
+    # Update costs
+    state.cupid.total_cost += c_left.cost + c_right.cost
+    state.baseline.total_cost += b_left.cost + b_right.cost
     state.round_count += 1
 
     total_cost = state.cupid.total_cost + state.baseline.total_cost
 
-    state.history.append(
-        {
-            "round": state.round_count,
-            "prompt": prompt,
-            "cupid_left_id": cupid_left_id,
-            "cupid_right_id": cupid_right_id,
-            "baseline_left_id": baseline_left_id,
-            "baseline_right_id": baseline_right_id,
-            "cupid_vote": request.cupid_vote,
-            "baseline_vote": request.baseline_vote,
-            "total_cost": total_cost,
-        }
-    )
+    state.history.append({
+        "round": state.round_count,
+        "prompt": prompt,
+        "cupid_left_id": cupid_left_id,
+        "cupid_right_id": cupid_right_id,
+        "baseline_left_id": baseline_left_id,
+        "baseline_right_id": baseline_right_id,
+        "cupid_vote": request.cupid_vote,
+        "baseline_vote": request.baseline_vote,
+        "total_cost": total_cost,
+    })
 
     return InteractResponse(
         session_id=session_id,
@@ -984,41 +871,17 @@ async def interact(request: InteractRequest):
         cupid_cost=state.cupid.total_cost,
         baseline_cost=state.baseline.total_cost,
         routing_cost=state.routing_cost,
-        cLeft=ModelResponse(
-            model_id=cupid_left_id,
-            model_name=_model_display_name_from_id(cupid_left_id, mode),
-            content=cupid_left_result["content"],
-            cost=cupid_left_result["cost"],
-            content_type=content_type,
-        ),
-        cRight=ModelResponse(
-            model_id=cupid_right_id,
-            model_name=_model_display_name_from_id(cupid_right_id, mode),
-            content=cupid_right_result["content"],
-            cost=cupid_right_result["cost"],
-            content_type=content_type,
-        ),
-        bLeft=ModelResponse(
-            model_id=baseline_left_id,
-            model_name=_model_display_name_from_id(baseline_left_id, mode),
-            content=baseline_left_result["content"],
-            cost=baseline_left_result["cost"],
-            content_type=content_type,
-        ),
-        bRight=ModelResponse(
-            model_id=baseline_right_id,
-            model_name=_model_display_name_from_id(baseline_right_id, mode),
-            content=baseline_right_result["content"],
-            cost=baseline_right_result["cost"],
-            content_type=content_type,
-        ),
+        cLeft=c_left, cRight=c_right, bLeft=b_left, bRight=b_right,
+        cLeftStats=get_model_stats(cupid_left_id, mode),
+        cRightStats=get_model_stats(cupid_right_id, mode),
+        bLeftStats=get_model_stats(baseline_left_id, mode),
+        bRightStats=get_model_stats(baseline_right_id, mode),
     )
 
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_with_model(request: ChatRequest):
     session_id = request.session_id
-
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -1028,22 +891,18 @@ async def chat_with_model(request: ChatRequest):
     height = request.height or 1024
 
     if request.system == "cupid":
-        model_id = state.final_cupid_model_id or (
-            state.cupid.arms[0] if state.cupid.arms else get_model_ids(mode)[0]
-        )
+        model_id = state.final_cupid_model_id or (state.cupid.arms[0] if state.cupid.arms else get_model_ids(mode)[0])
     else:
-        model_id = state.final_baseline_model_id or (
-            state.baseline.arms[0] if state.baseline.arms else get_model_ids(mode)[0]
-        )
+        model_id = state.final_baseline_model_id or (state.baseline.arms[0] if state.baseline.arms else get_model_ids(mode)[0])
 
     if mode == ArenaMode.TEXT:
         result = call_openrouter(request.message, model_id)
-        content = result.get("text", "")
+        response_text = result.get("text", "")
         cost = result.get("cost", 0)
         content_type = "text"
     else:
         result = call_runware(request.message, model_id, width, height)
-        content = result.get("imageUrl", "")
+        response_text = result.get("imageUrl", "")
         cost = result.get("cost", 0)
         content_type = "image"
 
@@ -1052,7 +911,7 @@ async def chat_with_model(request: ChatRequest):
     else:
         state.baseline.total_cost += cost
 
-    return ChatResponse(content=content, cost=cost, content_type=content_type)
+    return ChatResponse(response=response_text, content=response_text, cost=cost, content_type=content_type)
 
 
 @app.delete("/session/{session_id}")
@@ -1066,7 +925,6 @@ async def delete_session(session_id: str):
 @app.post("/session/{session_id}/save")
 async def save_session(session_id: str, request: SaveSessionRequest):
     state = sessions.get(session_id)
-
     session_data = {
         "session_id": session_id,
         "saved_at": datetime.now().isoformat(),
@@ -1082,13 +940,11 @@ async def save_session(session_id: str, request: SaveSessionRequest):
         "final_cost_b": request.final_cost_b,
         "side_by_side_rounds": request.side_by_side_rounds,
     }
-
     completed_sessions[session_id] = session_data
 
     output_dir = "./session_data"
     os.makedirs(output_dir, exist_ok=True)
     filename = f"{output_dir}/session_{session_id}.json"
-
     try:
         with open(filename, "w") as f:
             json.dump(session_data, f, indent=2, default=str)
@@ -1112,5 +968,4 @@ async def get_session_data(session_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)
