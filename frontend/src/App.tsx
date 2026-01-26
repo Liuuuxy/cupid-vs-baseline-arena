@@ -303,7 +303,7 @@ function sampleBudget(): BudgetConstraints {
   const minCost = 0.5;
   const maxCost = 1.5;
   const minRounds = 5;
-  const maxRounds = 15;
+  const maxRounds = 10;
 
   // Random cost between 0.5 and 1.5 (rounded to 2 decimal places)
   const randomCost = Math.round((minCost + Math.random() * (maxCost - minCost)) * 100) / 100;
