@@ -19,7 +19,7 @@ const API_URL = 'https://cupid-vs-baseline-arena.onrender.com';
 // const API_URL = 'http://localhost:8000';
 const SURVEY_URL = "https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbesl1iMmrT8";
 
-// --- IMAGE ARENA ACCESS GATE ---
+// --- Image World ACCESS GATE ---
 // NOTE: This is only a *UI-level* gate. Because this is client-side code, a determined person can still
 // discover the code in the built JS bundle. For stronger protection, enforce an access token on the backend.
 //
@@ -302,8 +302,8 @@ const RATING_LABELS = [
 function sampleBudget(): BudgetConstraints {
   const minCost = 0.7;
   const maxCost = 1.5;
-  const minRounds = 5;
-  const maxRounds = 10;
+  const minRounds = 2;
+  const maxRounds = 2;
 
   // Random cost between 0.5 and 1.5 (rounded to 2 decimal places)
   const randomCost = Math.round((minCost + Math.random() * (maxCost - minCost)) * 100) / 100;
@@ -545,7 +545,7 @@ const App: React.FC = () => {
   const [sessionId, setSessionId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
-  // ---- Image Arena access gate (soft UI-level lock) ----
+  // ---- Image World access gate (soft UI-level lock) ----
   const [imageGateOpen, setImageGateOpen] = useState<boolean>(false);
   const [imageGateCode, setImageGateCode] = useState<string>('');
   const [imageGateError, setImageGateError] = useState<string | null>(null);
@@ -674,7 +674,7 @@ const App: React.FC = () => {
         } else {
           // Keep them on modeSelect, but prompt for the code.
           setImageGateOpen(true);
-          setImageGateError('Image Arena requires an access code.');
+          setImageGateError('Image World requires an access code.');
         }
       }
     } catch {
@@ -696,7 +696,7 @@ const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [phase, arenaState?.round, init]);
 
-  // ---- Image Arena gating helpers ----
+  // ---- Image World gating helpers ----
   const openImageGate = () => {
     setImageGateOpen(true);
     setImageGateCode('');
@@ -774,7 +774,7 @@ const App: React.FC = () => {
               <Wand2 className="text-purple-600" size={20} />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-gray-900">Image Arena Access</h3>
+              <h3 className="text-lg font-bold text-gray-900">Image World Access</h3>
               <p className="text-xs text-gray-500">Access code required</p>
             </div>
           </div>
@@ -1098,7 +1098,7 @@ const App: React.FC = () => {
     // Safety check: don't allow Image mode unless they've unlocked it.
     // (Prevents accidental entry if someone navigates in a weird order.)
     if (mode === 'image' && !imageArenaUnlocked) {
-      setError('Image Arena requires an access code.');
+      setError('Image World requires an access code.');
       setPhase('modeSelect');
       openImageGate();
       return;
@@ -1474,10 +1474,10 @@ const App: React.FC = () => {
     setShowDownloadReminder(true);
   };
 
-  const handleDownloadAndFinish = () => {
-    downloadResults();
-    setHasDownloaded(true);
-  };
+  // const handleDownloadAndFinish = () => {
+  //   // downloadResults();
+  //   setHasDownloaded(true);
+  // };
 
   const handleFinishStudy = () => {
     setShowDownloadReminder(false);
@@ -1810,7 +1810,7 @@ const App: React.FC = () => {
           <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-6 text-white text-center">
             <h1 className="text-2xl font-bold flex items-center justify-center gap-3">
               <Sparkles size={28} />
-              Model Selection Arena
+              LLM Selection
             </h1>
             <p className="mt-2 opacity-90">Choose which type of AI models to compare</p>
           </div>
@@ -1824,7 +1824,7 @@ const App: React.FC = () => {
                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-blue-200 transition-colors">
                   <MessageSquare className="text-blue-600" size={32} />
                 </div>
-                <h2 className="text-xl font-bold text-gray-800 mb-2">LLM Arena</h2>
+                <h2 className="text-xl font-bold text-gray-800 mb-2">LLM World</h2>
                 <p className="text-sm text-gray-600">
                   Compare text generation models like GPT, Claude, Gemini, and more
                 </p>
@@ -1843,7 +1843,7 @@ const App: React.FC = () => {
                 <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-purple-200 transition-colors">
                   <Wand2 className="text-purple-600" size={32} />
                 </div>
-                <h2 className="text-xl font-bold text-gray-800 mb-2">Image Arena</h2>
+                <h2 className="text-xl font-bold text-gray-800 mb-2">Image World</h2>
                 <p className="text-sm text-gray-600">
                   Compare text-to-image models like DALL·E, Imagen, and more
                 </p>
@@ -1855,7 +1855,7 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            {/* Image Arena access modal (only shows when Image Arena is gated) */}
+            {/* Image World access modal (only shows when Image World is gated) */}
             {renderImageGateModal()}
           </div>
         </div>
@@ -1875,7 +1875,7 @@ const App: React.FC = () => {
               }`}
           >
             <h1 className="text-2xl md:text-3xl font-bold">
-              {mode === 'image' ? 'Image Generation Study' : 'LLM Matchmaking Study'}
+              {mode === 'image' ? 'Image Generation Study' : 'LLM Selection Study'}
             </h1>
             <p className="opacity-90">
               {mode === 'image' ? 'Find Your Ideal Image Model' : 'Find Your Dream Model'}
@@ -1890,7 +1890,7 @@ const App: React.FC = () => {
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                   <p className="font-semibold text-blue-800 mb-1">🎯 Goal of This Study</p>
                   <p className="text-blue-700 text-sm">
-                    Help us compare two model-matching systems. Your job is to choose which generated images you prefer (considering
+                    Help us compare two image model selection systems. Your job is to choose which generated images you prefer (considering
                     quality + cost) so we can see which system learns your preferences better.
                   </p>
                 </div>
@@ -2008,7 +2008,7 @@ const App: React.FC = () => {
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                   <p className="font-semibold text-blue-800 mb-1">🎯 Goal of This Study</p>
                   <p className="text-blue-700 text-sm">
-                    Help us compare two model-matching systems. Your job is to choose which answers you prefer (considering quality + cost)
+                    Help us compare two LLM selection systems. Your job is to choose which answers you prefer (considering quality + cost)
                     so we can see which system learns your preferences better.
                   </p>
                 </div>
@@ -2831,127 +2831,6 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              {/* STEP 1: Download */}
-              <div
-                className={`rounded-xl p-6 mb-5 border-2 ${hasDownloaded ? "bg-green-50 border-green-300" : saveStatus === 'saved' ? "bg-gray-50 border-gray-200" : "bg-yellow-50 border-yellow-400"
-                  }`}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${hasDownloaded ? "bg-green-500" : saveStatus === 'saved' ? "bg-gray-400" : "bg-yellow-500"
-                      }`}
-                  >
-                    {hasDownloaded ? <CheckCircle size={24} /> : "1"}
-                  </div>
-                  <div>
-                    <div className="font-bold text-gray-800 text-lg">
-                      {saveStatus === 'saved' ? 'Download Backup (Optional)' : 'Step 1: Download your submission file (JSON)'}
-                    </div>
-                    {hasDownloaded && (
-                      <div className="text-green-700 text-sm font-medium">✓ Downloaded</div>
-                    )}
-                  </div>
-                </div>
-
-                <p className="text-sm text-gray-700 mb-3">
-                  {saveStatus === 'saved'
-                    ? 'Your results are already saved. Download a local copy for your records.'
-                    : <>This JSON file is <strong>what you will upload</strong> to complete the study.<br /><strong>Nothing is submitted automatically.</strong></>
-                  }
-                </p>
-
-                <button
-                  onClick={handleDownloadAndFinish}
-                  className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded
-                    ? "bg-green-100 text-green-700 hover:bg-green-200"
-                    : saveStatus === 'saved'
-                      ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                      : "bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 shadow-lg"
-                    }`}
-                >
-                  <Download size={22} /> {hasDownloaded ? "Download Again" : "Download JSON File"}
-                </button>
-
-                {saveStatus !== 'saved' && (
-                  <p className="text-xs text-gray-600 mt-3">
-                    You will upload this <strong>.json</strong> file in Step 2.
-                  </p>
-                )}
-              </div>
-
-              {/* STEP 2: Upload - Hide if saved to database */}
-              {saveStatus !== 'saved' && (
-                <div
-                  className={`rounded-xl p-6 mb-4 border-2 ${hasDownloaded ? "bg-blue-50 border-blue-300" : "bg-gray-50 border-gray-200"
-                    }`}
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${confirmedUploaded ? "bg-green-600" : hasDownloaded ? "bg-blue-600" : "bg-gray-400"
-                        }`}
-                    >
-                      {confirmedUploaded ? <CheckCircle size={24} /> : "2"}
-                    </div>
-                    <div>
-                      <div className="font-bold text-gray-800 text-lg">
-                        Step 2: Upload the JSON to the survey (required)
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        You are <strong>not done</strong> until you upload the file <strong>and submit</strong> the survey.
-                      </div>
-                    </div>
-                  </div>
-
-                  <ol className="ml-5 list-decimal text-sm text-gray-700">
-                    <li>Click the button below to open the survey (opens a new tab).</li>
-                    <li>Find the <strong>file upload</strong> question.</li>
-                    <li>Upload the <strong>JSON file</strong> you downloaded in Step 1.</li>
-                    <li><strong>Submit the survey</strong> (this is what completes your participation).</li>
-                  </ol>
-
-                  <a
-                    href={SURVEY_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setHasOpenedSurvey(true)}
-                    className={`mt-4 w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition text-lg ${hasDownloaded
-                      ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg"
-                      : "bg-gray-200 text-gray-400 pointer-events-none cursor-not-allowed"
-                      }`}
-                  >
-                    <ArrowRight size={22} /> Open Survey & Upload JSON
-                  </a>
-
-                  {/* Confirmation checkbox */}
-                  <label className="mt-4 flex items-start gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      className="mt-1"
-                      disabled={!hasDownloaded || !hasOpenedSurvey}
-                      checked={confirmedUploaded}
-                      onChange={(e) => setConfirmedUploaded(e.target.checked)}
-                    />
-                    <span>
-                      I uploaded the JSON file in the survey and clicked <strong>Submit</strong>.
-                      <div className="text-xs text-gray-500 mt-1">
-                        (After uploading, return to this tab to finish.)
-                      </div>
-                    </span>
-                  </label>
-
-                  {!hasDownloaded && (
-                    <p className="text-center text-gray-400 text-sm mt-3">
-                      Please complete Step 1 first to enable upload.
-                    </p>
-                  )}
-
-                  {hasDownloaded && !hasOpenedSurvey && (
-                    <p className="text-center text-gray-500 text-sm mt-3">
-                      Tip: Click <strong>Open Survey & Upload JSON</strong> first, then come back to confirm.
-                    </p>
-                  )}
-                </div>
-              )}
 
               {/* Strong warning (always visible until confirmed) - only if NOT saved to database */}
               {!confirmedUploaded && saveStatus !== 'saved' && (
