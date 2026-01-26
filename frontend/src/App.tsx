@@ -25,7 +25,7 @@ const SURVEY_URL = "https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbes
 //
 // Change this string to whatever access code you want to give only to Image-study participants.
 // (Example: put this code in the Image Qualtrics instructions.)
-const IMAGE_ARENA_ACCESS_CODE = 'CHANGE_ME_IMAGE_CODE';
+const IMAGE_ARENA_ACCESS_CODE = 'image';
 const IMAGE_ARENA_UNLOCK_STORAGE_KEY = 'image_arena_unlocked_v1';
 
 // --- MARKDOWN COMPONENT WITH STYLING ---
