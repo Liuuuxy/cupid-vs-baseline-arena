@@ -19,6 +19,15 @@ const API_URL = 'https://cupid-vs-baseline-arena.onrender.com';
 // const API_URL = 'http://localhost:8000';
 const SURVEY_URL = "https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbesl1iMmrT8";
 
+// --- IMAGE ARENA ACCESS GATE ---
+// NOTE: This is only a *UI-level* gate. Because this is client-side code, a determined person can still
+// discover the code in the built JS bundle. For stronger protection, enforce an access token on the backend.
+//
+// Change this string to whatever access code you want to give only to Image-study participants.
+// (Example: put this code in the Image Qualtrics instructions.)
+const IMAGE_ARENA_ACCESS_CODE = 'CHANGE_ME_IMAGE_CODE';
+const IMAGE_ARENA_UNLOCK_STORAGE_KEY = 'image_arena_unlocked_v1';
+
 // --- MARKDOWN COMPONENT WITH STYLING ---
 const Markdown: React.FC<{ content: string; className?: string }> = ({ content, className = '' }) => {
   // FIX: Pre-process the content to convert OpenAI's LaTeX style (\[ ... \]) 
@@ -536,6 +545,18 @@ const App: React.FC = () => {
   const [sessionId, setSessionId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
+  // ---- Image Arena access gate (soft UI-level lock) ----
+  const [imageGateOpen, setImageGateOpen] = useState<boolean>(false);
+  const [imageGateCode, setImageGateCode] = useState<string>('');
+  const [imageGateError, setImageGateError] = useState<string | null>(null);
+  const [imageArenaUnlocked, setImageArenaUnlocked] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem(IMAGE_ARENA_UNLOCK_STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+
   // Model pool data fetched from backend for constraint sampling
   const [modelPoolData, setModelPoolData] = useState<ModelPoolStats[]>([]);
   const [modelPoolLoading, setModelPoolLoading] = useState<boolean>(true);
@@ -628,6 +649,41 @@ const App: React.FC = () => {
     fetchModelPool();
   }, []);
 
+  // Optional: allow direct links that pre-select an arena.
+  // Examples:
+  //   - Text/LLM participants:  https://.../?mode=text
+  //   - Image participants:     https://.../?mode=image&code=YOUR_CODE
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const modeParam = (params.get('mode') || params.get('arena') || '').toLowerCase();
+      const codeParam = params.get('code') || params.get('image_code') || params.get('pass');
+
+      if (modeParam === 'text') {
+        setMode('text');
+        setPhase('consent');
+        return;
+      }
+
+      if (modeParam === 'image') {
+        if (codeParam && codeParam === IMAGE_ARENA_ACCESS_CODE) {
+          setImageArenaUnlocked(true);
+          try { sessionStorage.setItem(IMAGE_ARENA_UNLOCK_STORAGE_KEY, '1'); } catch { }
+          setMode('image');
+          setPhase('consent');
+        } else {
+          // Keep them on modeSelect, but prompt for the code.
+          setImageGateOpen(true);
+          setImageGateError('Image Arena requires an access code.');
+        }
+      }
+    } catch {
+      // Ignore URL parsing errors and fall back to normal flow.
+    }
+    // Intentionally run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (showDownloadReminder) {
       setHasOpenedSurvey(false);
@@ -639,6 +695,132 @@ const App: React.FC = () => {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [phase, arenaState?.round, init]);
+
+  // ---- Image Arena gating helpers ----
+  const openImageGate = () => {
+    setImageGateOpen(true);
+    setImageGateCode('');
+    setImageGateError(null);
+  };
+
+  const closeImageGate = () => {
+    setImageGateOpen(false);
+    setImageGateCode('');
+    setImageGateError(null);
+  };
+
+  const unlockImageArena = () => {
+    setImageArenaUnlocked(true);
+    try {
+      sessionStorage.setItem(IMAGE_ARENA_UNLOCK_STORAGE_KEY, '1');
+    } catch {
+      // ignore
+    }
+  };
+
+  const attemptUnlockImageArena = () => {
+    const code = imageGateCode.trim();
+    if (!code) {
+      setImageGateError('Please enter the access code.');
+      return;
+    }
+    if (code !== IMAGE_ARENA_ACCESS_CODE) {
+      setImageGateError('Incorrect access code. Please use the code provided in your study instructions.');
+      return;
+    }
+
+    unlockImageArena();
+    closeImageGate();
+    setMode('image');
+    setPhase('consent');
+  };
+
+  const handleSelectTextMode = () => {
+    setMode('text');
+    setPhase('consent');
+  };
+
+  const handleSelectImageMode = () => {
+    if (imageArenaUnlocked) {
+      setMode('image');
+      setPhase('consent');
+      return;
+    }
+    openImageGate();
+  };
+
+  const renderImageGateModal = () => {
+    if (!imageGateOpen) return null;
+
+    return (
+      <div
+        className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+        onClick={closeImageGate}
+      >
+        <div
+          className="bg-white rounded-2xl max-w-md w-full p-6 relative shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={closeImageGate}
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
+
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+              <Wand2 className="text-purple-600" size={20} />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Image Arena Access</h3>
+              <p className="text-xs text-gray-500">Access code required</p>
+            </div>
+          </div>
+
+          <p className="text-sm text-gray-600 mt-3">
+            If you are participating in the <strong>Image Generation</strong> study, enter the access code from your instructions.
+          </p>
+
+          <div className="mt-4">
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Access code</label>
+            <input
+              type="password"
+              value={imageGateCode}
+              onChange={(e) => setImageGateCode(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && attemptUnlockImageArena()}
+              className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 outline-none"
+              placeholder="Enter code"
+              autoFocus
+            />
+            {imageGateError && (
+              <div className="mt-2 text-sm text-red-600 flex items-start gap-2">
+                <AlertCircle size={16} className="mt-0.5" />
+                <span>{imageGateError}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={closeImageGate}
+              className="flex-1 py-2.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={attemptUnlockImageArena}
+              className="flex-1 py-2.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 font-semibold disabled:opacity-50"
+              disabled={!imageGateCode.trim()}
+            >
+              Unlock
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const fetchNextRound = useCallback(async (isFirst: boolean = false, currentPrompt?: string) => {
     setLoading(true);
@@ -913,6 +1095,15 @@ const App: React.FC = () => {
   }, [sessionId, demographics, personaGroup, selectedExpertSubject, assignedConstraints, budgetConstraints, roundHistory, evalRatingA, evalRatingB, evalBudgetRatingA, evalBudgetRatingB, evalComment, arenaState, openTestRoundsA, openTestRoundsB, sideBySideRounds]);
 
   const handleConsent = () => {
+    // Safety check: don't allow Image mode unless they've unlocked it.
+    // (Prevents accidental entry if someone navigates in a weird order.)
+    if (mode === 'image' && !imageArenaUnlocked) {
+      setError('Image Arena requires an access code.');
+      setPhase('modeSelect');
+      openImageGate();
+      return;
+    }
+
     const newSessionId = `sess_${mode}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     setSessionId(newSessionId);
     const assignedBudget = sampleBudget();
@@ -1599,7 +1790,7 @@ const App: React.FC = () => {
             <div className="grid grid-cols-2 gap-6">
               {/* Text/LLM Mode */}
               <button
-                onClick={() => { setMode('text'); setPhase('consent'); }}
+                onClick={handleSelectTextMode}
                 className="p-6 rounded-2xl border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all text-center group"
               >
                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-blue-200 transition-colors">
@@ -1618,7 +1809,7 @@ const App: React.FC = () => {
 
               {/* Image Mode */}
               <button
-                onClick={() => { setMode('image'); setPhase('consent'); }}
+                onClick={handleSelectImageMode}
                 className="p-6 rounded-2xl border-2 border-gray-200 hover:border-purple-500 hover:bg-purple-50 transition-all text-center group"
               >
                 <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-purple-200 transition-colors">
@@ -1635,6 +1826,9 @@ const App: React.FC = () => {
                 </div>
               </button>
             </div>
+
+            {/* Image Arena access modal (only shows when Image Arena is gated) */}
+            {renderImageGateModal()}
           </div>
         </div>
       </div>
