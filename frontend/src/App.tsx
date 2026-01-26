@@ -300,7 +300,7 @@ const RATING_LABELS = [
 // --- BUDGET RANDOM RANGE ---
 // Cost: 0.5 to 1.5, Rounds: 5 to 15 (randomly selected)
 function sampleBudget(): BudgetConstraints {
-  const minCost = 0.5;
+  const minCost = 0.7;
   const maxCost = 1.5;
   const minRounds = 5;
   const maxRounds = 10;
@@ -1190,7 +1190,7 @@ const App: React.FC = () => {
     setInit(false);
   };
 
-  const handleSatisfied = () => {
+  const handleSatisfied = async () => {
     if (arenaState && cupidVote && baselineVote) {
       const historyEntry: RoundHistory = {
         round: arenaState.round, prompt: prompt,
@@ -1207,6 +1207,7 @@ const App: React.FC = () => {
         baseline_total_cost: arenaState.baseline_cost,
       };
       setRoundHistory(prev => [...prev, historyEntry]);
+      await submitFinalVotes();
     }
     // Show testing tutorial for first time
     if (!hasSeenTestingTutorial) {
@@ -1242,6 +1243,7 @@ const App: React.FC = () => {
           baseline_total_cost: arenaState.baseline_cost,
         };
         setRoundHistory(prev => [...prev, historyEntry]);
+        await submitFinalVotes();
       }
       // Show testing tutorial for first time
       if (!hasSeenTestingTutorial) {
@@ -1435,6 +1437,32 @@ const App: React.FC = () => {
       return false;
     }
   };
+
+  const submitFinalVotes = useCallback(async () => {
+    if (!sessionId || !cupidVote || !baselineVote) return;
+
+    try {
+      const res = await fetch(`${API_URL}/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          mode,
+          cupid_vote: cupidVote,
+          baseline_vote: baselineVote,
+        }),
+      });
+
+      if (!res.ok) {
+        // Don’t block the user, but log so you can see it in devtools
+        const err = await res.json().catch(() => null);
+        console.warn('Final vote sync failed:', res.status, err);
+      }
+    } catch (e) {
+      console.warn('Final vote sync error:', e);
+    }
+  }, [sessionId, mode, cupidVote, baselineVote]);
+
 
   const handleFinalSubmit = async () => {
     await saveSessionData();

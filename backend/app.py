@@ -567,52 +567,73 @@ async def call_runware(
                     "taskUUID": getattr(image, "taskUUID", task_uuid) or task_uuid,
                 }
 
-                # Save result to image database
-                payload = {
-                    "provider": "runware-python",
-                    "model_id": model_id,
-                    "model_name": model_name,
-                    "display_name": display_name,
-                    "prompt": prompt,
-                    "width": width,
-                    "height": height,
-                    "seed": result.get("seed", 0),
-                    "cost": result.get("cost", 0.0),
-                    "algorithm": algorithm,
-                    "round_number": round_number,
-                    "position": position,
-                    "image_url": result.get("imageUrl", ""),
-                    "ucb_score": ucb_score,
-                    "runware": {"model": model_name},
-                }
-                await save_image_result(
-                    task_uuid=result.get("taskUUID", task_uuid),
-                    session_id=session_id,
-                    model_id=model_id,
-                    image_url=result.get("imageUrl", ""),
-                    algorithm=algorithm,
-                    round_number=round_number,
-                    position=position,
-                    ucb_score=ucb_score,
-                    data=payload,
-                )
-                # In the SDK response handling section, add:
-                print(
-                    f"Runware response - cost: {getattr(image, 'cost', 'NOT_FOUND')}, attrs: {dir(image)}"
-                )
+                # # Save result to image database
+                # payload = {
+                #     "provider": "runware-python",
+                #     "model_id": model_id,
+                #     "model_name": model_name,
+                #     "display_name": display_name,
+                #     "prompt": prompt,
+                #     "width": width,
+                #     "height": height,
+                #     "seed": result.get("seed", 0),
+                #     "cost": result.get("cost", 0.0),
+                #     "algorithm": algorithm,
+                #     "round_number": round_number,
+                #     "position": position,
+                #     "image_url": result.get("imageUrl", ""),
+                #     "ucb_score": ucb_score,
+                #     "runware": {"model": model_name},
+                # }
+                # await save_image_result(
+                #     task_uuid=result.get("taskUUID", task_uuid),
+                #     session_id=session_id,
+                #     model_id=model_id,
+                #     image_url=result.get("imageUrl", ""),
+                #     algorithm=algorithm,
+                #     round_number=round_number,
+                #     position=position,
+                #     ucb_score=ucb_score,
+                #     data=payload,
+                # )
+                # # In the SDK response handling section, add:
+                # print(
+                #     f"Runware response - cost: {getattr(image, 'cost', 'NOT_FOUND')}, attrs: {dir(image)}"
+                # )
                 return result
-            else:
-                return {
-                    "imageUrl": "",
-                    "cost": 0.0,
-                    "seed": 0,
-                    "taskUUID": task_uuid,
-                    "error": "No image returned",
-                }
+            # else:
+            #     return {
+            #         "imageUrl": "",
+            #         "cost": 0.0,
+            #         "seed": 0,
+            #         "taskUUID": task_uuid,
+            #         "error": "No image returned",
+            #     }
+            return {
+                "imageUrl": "",
+                "cost": 0.0,
+                "seed": 0,
+                "taskUUID": task_uuid,
+                "error": "No image returned",
+            }
 
         except Exception as e:
-            print(f"Runware SDK error: {e}")
-            # Fall through to REST API fallback
+            err_msg = str(e)
+            print(f"Runware SDK error: {err_msg}")
+            return {
+                "imageUrl": "",
+                "cost": 0.0,
+                "seed": 0,
+                "taskUUID": task_uuid,
+                "error": err_msg,
+            }
+    return {
+        "imageUrl": "",
+        "cost": 0.0,
+        "seed": 0,
+        "taskUUID": task_uuid,
+        "error": "Runware image generation unavailable",
+    }
 
     # # REST API fallback
     # RUNWARE_URL = "https://api.runware.ai/v1"
@@ -1180,6 +1201,20 @@ class SaveSessionRequest(BaseModel):
     side_by_side_rounds: Optional[int] = None
 
 
+class VoteRequest(BaseModel):
+    session_id: str
+    mode: Optional[ArenaMode] = None
+    cupid_vote: Optional[str] = None  # "left" | "right"
+    baseline_vote: Optional[str] = None  # "left" | "right"
+
+
+class VoteResponse(BaseModel):
+    success: bool = True
+    session_id: str
+    final_cupid_model_id: Optional[int] = None
+    final_baseline_model_id: Optional[int] = None
+
+
 class SaveResultsRequest(BaseModel):
     """Full study results object from frontend."""
 
@@ -1286,6 +1321,45 @@ async def root():
         "message": "Model Selection Arena API - Text & Image",
         "modes": ["text", "image"],
     }
+
+
+@app.post("/vote", response_model=VoteResponse)
+async def vote(request: VoteRequest):
+    if request.session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    state = sessions[request.session_id]
+
+    if request.mode is not None and state.mode != request.mode:
+        raise HTTPException(status_code=400, detail="Session mode mismatch")
+
+    if request.cupid_vote is not None:
+        if request.cupid_vote not in ("left", "right"):
+            raise HTTPException(status_code=400, detail="Invalid cupid_vote")
+        winner_is_left = request.cupid_vote == "left"
+        state.cupid.update_with_vote(winner_is_left)
+        state.final_cupid_model_id = (
+            state.cupid.current_left_id
+            if winner_is_left
+            else state.cupid.current_right_id
+        )
+
+    if request.baseline_vote is not None:
+        if request.baseline_vote not in ("left", "right"):
+            raise HTTPException(status_code=400, detail="Invalid baseline_vote")
+        winner_is_left = request.baseline_vote == "left"
+        state.baseline.update_with_vote(winner_is_left)
+        state.final_baseline_model_id = (
+            state.baseline.current_left_id
+            if winner_is_left
+            else state.baseline.current_right_id
+        )
+
+    return VoteResponse(
+        session_id=request.session_id,
+        final_cupid_model_id=state.final_cupid_model_id,
+        final_baseline_model_id=state.final_baseline_model_id,
+    )
 
 
 @app.get("/health")
@@ -1853,7 +1927,6 @@ async def get_image_study_results(
         return {"results": [dict(r) for r in results], "count": len(results)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 if __name__ == "__main__":
