@@ -1699,27 +1699,6 @@ const App: React.FC = () => {
                   </li>
                 </ul>
 
-                {/* Constraint-based (Traditional group) note */}
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mt-4">
-                  <p className="font-semibold text-emerald-900 mb-1">✅ If you were assigned constraints (Traditional group)</p>
-                  <p className="text-emerald-800 text-sm m-0">
-                    You may see a small list of constraints (e.g., “price ≤ $X/image”, “photorealism required”, “higher fidelity
-                    required”, “safe content only”). In this mode, treat constraints as <strong>requirements</strong>.
-                  </p>
-                  <ul className="ml-5 list-disc text-sm text-emerald-800 mt-2">
-                    <li>
-                      When picking winners in each duel, <strong>prefer images that come from models satisfying the constraints</strong>.
-                    </li>
-                    <li>
-                      If <strong>both</strong> options satisfy constraints, choose based on <strong>quality + cost</strong> as usual.
-                    </li>
-                    <li>
-                      If <strong>neither</strong> satisfies constraints, pick the option that seems <strong>closest</strong> (and you can
-                      use feedback like “I want cheaper” or “I want more realistic images”).
-                    </li>
-                  </ul>
-                </div>
-
                 <h3 className="text-lg font-semibold mt-4">What you do each round (the exact loop)</h3>
                 <ol className="ml-5 list-decimal">
                   <li>
