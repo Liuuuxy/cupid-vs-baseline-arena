@@ -1302,11 +1302,14 @@ def get_model_stats(model_id: int, mode: ArenaMode = ArenaMode.TEXT) -> Optional
                 "output_price": float(row.get("output-price"))
                 if pd.notna(row.get("output-price"))
                 else None,
-                "context_window": int(row.get("context_window"))
-                if pd.notna(row.get("context_window"))
+                "context_window": int(row.get("window-context"))
+                if pd.notna(row.get("window-context"))
                 else None,
-                "max_output": int(row.get("max_output"))
-                if pd.notna(row.get("max_output"))
+                "max_output": int(row.get("max-output"))
+                if pd.notna(row.get("max-output"))
+                else None,
+                "function_calling": bool(int(row.get("function-calling")))
+                if pd.notna(row.get("function-calling"))
                 else None,
             }
         else:
