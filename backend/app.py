@@ -74,8 +74,8 @@ OPENROUTER_HEADERS = {
 RUNWARE_API_KEY = os.environ.get("RUNWARE_API_KEY", "")
 
 # Model pool paths
-MODEL_POOL_PATH = os.environ.get("MODEL_POOL_PATH", "./model-pool.csv")
-MODEL_POOL_LOCAL = os.environ.get("MODEL_POOL_LOCAL", "./model-pool.csv")
+MODEL_POOL_PATH = os.environ.get("MODEL_POOL_PATH", "./model-pool-llm.csv")
+MODEL_POOL_LOCAL = os.environ.get("MODEL_POOL_LOCAL", "./model-pool-llm.csv")
 MODEL_POOL_IMAGE_PATH = os.environ.get(
     "MODEL_POOL_IMAGE_PATH", "./image_model_pool.csv"
 )
@@ -98,30 +98,6 @@ def _load_model_pool() -> pd.DataFrame:
         df = pd.read_csv(MODEL_POOL_PATH)
     elif os.path.exists(MODEL_POOL_LOCAL):
         df = pd.read_csv(MODEL_POOL_LOCAL)
-    else:
-        df = pd.DataFrame(
-            {
-                "id": [1, 2, 3, 4, 5],
-                "model-id": [
-                    "openai/gpt-4o-mini",
-                    "anthropic/claude-3-haiku",
-                    "google/gemini-flash-1.5",
-                    "meta-llama/llama-3.1-8b-instruct",
-                    "mistralai/mistral-7b-instruct",
-                ],
-                "model": [
-                    "GPT-4o Mini",
-                    "Claude 3 Haiku",
-                    "Gemini Flash",
-                    "Llama 3.1 8B",
-                    "Mistral 7B",
-                ],
-                "intelligence": [85, 82, 80, 75, 72],
-                "speed": [90, 88, 92, 85, 87],
-                "input-price": [0.15, 0.25, 0.075, 0.05, 0.05],
-                "output-price": [0.60, 1.25, 0.30, 0.05, 0.05],
-            }
-        )
     drop_cols = [c for c in df.columns if c.startswith("Unnamed")]
     if drop_cols:
         df = df.drop(columns=drop_cols)
