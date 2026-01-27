@@ -280,6 +280,13 @@ interface RoundHistory {
   routing_cost?: number;
   cupid_total_cost?: number;  // Running total for cupid system
   baseline_total_cost?: number;  // Running total for baseline system
+
+  // Image mode only: URLs of the generated images shown this round
+  cupid_left_image_url?: string;
+  cupid_right_image_url?: string;
+  baseline_left_image_url?: string;
+  baseline_right_image_url?: string;
+
 }
 
 interface OpenTestMessage {
@@ -882,6 +889,12 @@ const App: React.FC = () => {
           routing_cost: arenaState.routing_cost,
           cupid_total_cost: arenaState.cupid_cost,
           baseline_total_cost: arenaState.baseline_cost,
+          ...(mode === 'image' ? {
+            cupid_left_image_url: arenaState.cupid_pair.left.text,
+            cupid_right_image_url: arenaState.cupid_pair.right.text,
+            baseline_left_image_url: arenaState.baseline_pair.left.text,
+            baseline_right_image_url: arenaState.baseline_pair.right.text,
+          } : {}),
         };
         setRoundHistory(prev => [...prev, historyEntry]);
       }
@@ -1205,6 +1218,13 @@ const App: React.FC = () => {
         routing_cost: arenaState.routing_cost,
         cupid_total_cost: arenaState.cupid_cost,
         baseline_total_cost: arenaState.baseline_cost,
+        ...(mode === 'image' ? {
+          cupid_left_image_url: arenaState.cupid_pair.left.text,
+          cupid_right_image_url: arenaState.cupid_pair.right.text,
+          baseline_left_image_url: arenaState.baseline_pair.left.text,
+          baseline_right_image_url: arenaState.baseline_pair.right.text,
+        } : {}),
+
       };
       setRoundHistory(prev => [...prev, historyEntry]);
       await submitFinalVotes();
@@ -1241,6 +1261,13 @@ const App: React.FC = () => {
           routing_cost: arenaState.routing_cost,
           cupid_total_cost: arenaState.cupid_cost,
           baseline_total_cost: arenaState.baseline_cost,
+          ...(mode === 'image' ? {
+            cupid_left_image_url: arenaState.cupid_pair.left.text,
+            cupid_right_image_url: arenaState.cupid_pair.right.text,
+            baseline_left_image_url: arenaState.baseline_pair.left.text,
+            baseline_right_image_url: arenaState.baseline_pair.right.text,
+          } : {}),
+
         };
         setRoundHistory(prev => [...prev, historyEntry]);
         await submitFinalVotes();
