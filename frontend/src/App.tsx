@@ -15,8 +15,8 @@ import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
 import 'katex/dist/katex.min.css';
 // --- API CONFIGURATION ---
-const API_URL = 'https://cupid-vs-baseline-arena.onrender.com';
-// const API_URL = 'http://localhost:8000';
+// const API_URL = 'https://cupid-vs-baseline-arena.onrender.com';
+const API_URL = 'http://localhost:8000';
 const SURVEY_URL = "https://asuengineering.co1.qualtrics.com/jfe/form/SV_6YiJbesl1iMmrT8";
 
 // --- Image World ACCESS GATE ---
@@ -310,7 +310,7 @@ function sampleBudget(): BudgetConstraints {
   const minCost = 0.7;
   const maxCost = 1.5;
   const minRounds = 5;
-  const maxRounds = 10;
+  const maxRounds = 15;
 
   // Random cost between 0.5 and 1.5 (rounded to 2 decimal places)
   const randomCost = Math.round((minCost + Math.random() * (maxCost - minCost)) * 100) / 100;

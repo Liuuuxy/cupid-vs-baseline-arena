@@ -9,11 +9,15 @@ import os
 import re
 import uuid
 import json
+import time
 from typing import Dict, Any, List, Optional, Tuple
 from collections import Counter, deque
 from datetime import datetime
 import asyncio
 from enum import Enum
+
+from dotenv import load_dotenv
+load_dotenv()
 
 import numpy as np
 import pandas as pd
@@ -50,6 +54,7 @@ try:
     )
 
     BOTORCH_AVAILABLE = True
+    print("botorch avaliable")
 except ImportError:
     BOTORCH_AVAILABLE = False
     print("Warning: botorch not available. CUPID algorithm will be limited.")
@@ -455,6 +460,117 @@ def call_openrouter(prompt: str, model_id: int) -> Dict[str, Any]:
             "completion_tokens": 0,
             "error": str(e),
         }
+
+
+def call_aux_llm(
+    feedback_text: str,
+    constraints: Optional[List[Dict]],
+    model_pool: pd.DataFrame,
+    model_ids: List[int],
+    mode: ArenaMode = ArenaMode.TEXT,
+) -> Dict[str, Any]:
+    """T3: Auxiliary LLM call via Grok 4.1 Fast.
+
+    Converts user language feedback + constraints into per-model binary
+    indicators (1 = model likely satisfies user intent, 0 = not).
+    Returns {"indicators": {model_id: 0|1, ...}, "cost": float}.
+    """
+    # Build a concise model card summary for the prompt
+    model_summaries = []
+    for mid in model_ids:
+        row = model_pool.loc[model_pool["id"] == mid]
+        if row.empty:
+            continue
+        row = row.iloc[0]
+        name = str(row.get("model", row.get("model-id", f"Model {mid}")))
+        attrs = []
+        for col, label in [
+            ("intelligence", "intelligence"),
+            ("speed", "speed"),
+            ("reasoning", "reasoning"),
+            ("input-price", "input_price $/1M tok"),
+            ("output-price", "output_price $/1M tok"),
+            ("window-context", "context_window"),
+            ("max-output", "max_output"),
+            ("function-calling", "function_calling"),
+        ]:
+            val = row.get(col)
+            if pd.notna(val):
+                attrs.append(f"{label}={val}")
+        model_summaries.append(f"  id={mid} name={name} {' '.join(attrs)}")
+
+    model_block = "\n".join(model_summaries)
+
+    constraint_block = ""
+    if constraints:
+        lines = []
+        for c in constraints:
+            lines.append(f"  {c.get('displayName', c.get('attribute'))} {c.get('operator', '>=')} {c.get('value')}")
+        constraint_block = "User constraints:\n" + "\n".join(lines)
+
+    feedback_block = ""
+    if feedback_text:
+        feedback_block = f"User feedback: {feedback_text}"
+
+    system_prompt = (
+        "You are a routing model for an LLM selection system. "
+        "Given a set of models with attributes, user constraints, and optional feedback, "
+        "output a JSON object mapping each model id to 1 (likely satisfies user needs) or 0 (likely does not). "
+        "Output ONLY valid JSON, no explanation. Example: {\"1\":1,\"2\":0,\"3\":1}"
+    )
+
+    user_prompt = f"""Models:
+{model_block}
+
+{constraint_block}
+{feedback_block}
+
+Return JSON mapping model id -> 1 or 0:"""
+
+    payload = {
+        "model": "x-ai/grok-4.1-fast",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "max_tokens": 256,
+        "temperature": 0.0,
+    }
+
+    if not OPENROUTER_API_KEY:
+        return {"indicators": {mid: 1 for mid in model_ids}, "cost": 0.0}
+
+    try:
+        response = requests.post(
+            OPENROUTER_URL,
+            headers=OPENROUTER_HEADERS,
+            data=json.dumps(payload),
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+        text = ""
+        if isinstance(data.get("choices"), list) and data["choices"]:
+            text = data["choices"][0].get("message", {}).get("content", "")
+        usage = data.get("usage", {})
+        cost = float(usage.get("cost", 0) or 0)
+
+        # Parse the JSON indicators from LLM response
+        text = text.strip()
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+        raw = json.loads(text)
+        indicators = {int(k): int(v) for k, v in raw.items()}
+        # Ensure all model_ids are present
+        for mid in model_ids:
+            if mid not in indicators:
+                indicators[mid] = 1
+        return {"indicators": indicators, "cost": cost}
+    except Exception as e:
+        print(f"Warning: aux LLM call failed: {e}")
+        return {"indicators": {mid: 1 for mid in model_ids}, "cost": 0.0}
 
 
 async def call_runware(
@@ -913,6 +1029,13 @@ class CUPIDState:
         self.last_pair_ucb: Optional[Dict[str, float]] = None
         self.last_ctx_idx: Optional[int] = None
 
+        # Language bias from auxiliary LLM (per-arm additive bonus)
+        self.language_bias: Optional[torch.Tensor] = None
+
+        # Timing: last measured durations (seconds) for GP update and belief update
+        self._last_gp_update_time: float = 0.0
+        self._last_belief_update_time: float = 0.0
+
     @property
     def current_left_id(self) -> Optional[int]:
         if self.current_left_idx is not None and 0 <= self.current_left_idx < len(
@@ -965,6 +1088,9 @@ class CUPIDState:
             expected_base += p[cidx] * base_ctx
 
         ucb = expected_base
+        # Apply language bias from auxiliary LLM if available
+        if self.language_bias is not None:
+            ucb = ucb + self.kappa * self.language_bias.to(ucb)
         k = min(2, ucb.numel())
         top = torch.topk(ucb, k=k).indices.tolist()
 
@@ -992,6 +1118,8 @@ class CUPIDState:
 
     def update_with_vote(self, winner_is_left: bool):
         if self.current_left_idx is None or self.current_right_idx is None:
+            self._last_gp_update_time = 0.0
+            self._last_belief_update_time = 0.0
             return
 
         i, j = self.current_left_idx, self.current_right_idx
@@ -999,9 +1127,15 @@ class CUPIDState:
         loser_arm = j if winner_is_left else i
 
         if not BOTORCH_AVAILABLE:
+            t_belief_start = time.perf_counter()
             self.recent_arms.extend([winner_arm, loser_arm])
             self.round_count += 1
+            self._last_gp_update_time = 0.0
+            self._last_belief_update_time = time.perf_counter() - t_belief_start
             return
+
+        # ── T1: GP posterior update (Laplace approx, Hessian, fit) ──
+        t_gp_start = time.perf_counter()
 
         for cidx, ctx in enumerate(self.contexts):
             fi = build_point(self.arms[i], ctx, self.num_models)
@@ -1026,8 +1160,15 @@ class CUPIDState:
         )
         self.model = fit_model(self.train_X, self.comps_wl, self.min_fit_pairs)
 
+        self._last_gp_update_time = time.perf_counter() - t_gp_start
+
+        # ── T5: Belief + budget update ──
+        t_belief_start = time.perf_counter()
+
         self.recent_arms.extend([winner_arm, loser_arm])
         self.round_count += 1
+
+        self._last_belief_update_time = time.perf_counter() - t_belief_start
 
 
 class BaselineState:
@@ -1091,6 +1232,7 @@ class SessionState:
         self.routing_cost = 0.0
         self.final_cupid_model_id: Optional[int] = None
         self.final_baseline_model_id: Optional[int] = None
+        self.constraints: Optional[List[Dict]] = None
 
 
 sessions: Dict[str, SessionState] = {}
@@ -1278,10 +1420,10 @@ def get_model_stats(model_id: int, mode: ArenaMode = ArenaMode.TEXT) -> Optional
                 "output_price": float(row.get("output-price"))
                 if pd.notna(row.get("output-price"))
                 else None,
-                "context_window": int(row.get("window-context"))
+                "context_window": int(str(row.get("window-context")).replace(",", ""))
                 if pd.notna(row.get("window-context"))
                 else None,
-                "max_output": int(row.get("max-output"))
+                "max_output": int(str(row.get("max-output")).replace(",", ""))
                 if pd.notna(row.get("max-output"))
                 else None,
                 "function_calling": bool(int(row.get("function-calling")))
@@ -1425,12 +1567,34 @@ async def get_image_results(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _append_timing_log(session_id: str, timing_entry: Dict):
+    """Append a timing entry to the per-session timing log file."""
+    output_dir = "./session_data"
+    os.makedirs(output_dir, exist_ok=True)
+    log_path = f"{output_dir}/timing_log_{session_id}.json"
+    try:
+        if os.path.exists(log_path):
+            with open(log_path, "r") as f:
+                log = json.load(f)
+        else:
+            log = []
+        log.append(timing_entry)
+        with open(log_path, "w") as f:
+            json.dump(log, f, indent=2)
+    except Exception as e:
+        print(f"Warning: Could not write timing log: {e}")
+
+
 @app.post("/interact", response_model=InteractResponse)
 async def interact(request: InteractRequest):
     mode = request.mode
     prompt = request.prompt
     width = request.width or 1024
     height = request.height or 1024
+
+    # ── Timing: T1 (GP posterior update) + T5 (belief update) via vote processing ──
+    t_gp_update = 0.0
+    t_belief_update = 0.0
 
     if request.session_id and request.session_id in sessions:
         session_id = request.session_id
@@ -1442,6 +1606,9 @@ async def interact(request: InteractRequest):
         if request.cupid_vote:
             winner_is_left = request.cupid_vote == "left"
             state.cupid.update_with_vote(winner_is_left)
+            # Retrieve timing from the instrumented update_with_vote
+            t_gp_update = state.cupid._last_gp_update_time
+            t_belief_update = state.cupid._last_belief_update_time
             state.final_cupid_model_id = (
                 state.cupid.current_left_id
                 if winner_is_left
@@ -1465,9 +1632,46 @@ async def interact(request: InteractRequest):
         if request.budget_rounds is not None:
             state.budget_rounds = request.budget_rounds
 
+        # Persist constraints on the session (only sent on first round)
+        if request.constraints:
+            state.constraints = request.constraints
+
         sessions[session_id] = state
 
+    # Use session-persisted constraints (available every round, not just round 1)
+    effective_constraints = state.constraints
+    feedback_text = request.feedback_text or ""
+
+    # ── T3: Auxiliary LLM call (language feedback → binary indicators) ──
+    # Must run before T2 so language bias is available for UCB scoring.
+    # Only call the routing LLM when there is actual signal to process.
+    t_aux_start = time.perf_counter()
+    if feedback_text or effective_constraints:
+        aux_result = call_aux_llm(
+            feedback_text=feedback_text,
+            constraints=effective_constraints,
+            model_pool=get_model_pool(mode),
+            model_ids=get_model_ids(mode),
+            mode=mode,
+        )
+        # Convert binary indicators into language bias tensor for CUPID
+        # indicator=1 → bias +1 (model satisfies), indicator=0 → bias -1 (penalize)
+        if BOTORCH_AVAILABLE:
+            indicators = aux_result.get("indicators", {})
+            bias_vec = torch.zeros(state.cupid.K, dtype=torch.double)
+            for idx, arm_id in enumerate(state.cupid.arms):
+                bias_vec[idx] = 1.0 if indicators.get(arm_id, 1) == 1 else -1.0
+            state.cupid.language_bias = bias_vec
+        state.routing_cost += aux_result.get("cost", 0.0)
+    else:
+        aux_result = {"indicators": {}, "cost": 0.0}
+        state.cupid.language_bias = None
+    t_aux_llm = time.perf_counter() - t_aux_start
+
+    # ── T2: bUCB scoring + arm selection (uses language bias from T3) ──
+    t_ucb_start = time.perf_counter()
     cupid_left_id, cupid_right_id = state.cupid.select_pair(request.feedback_text or "")
+    t_ucb_scoring = time.perf_counter() - t_ucb_start
 
     # Optional: capture CUPID UCB scores for the selected pair (for logging)
     cupid_left_ucb = None
@@ -1481,6 +1685,9 @@ async def interact(request: InteractRequest):
         cupid_right_ucb = None
 
     baseline_left_id, baseline_right_id = state.baseline.select_pair()
+
+    # ── T4: LLM response generation (the duel) ──
+    t_llm_start = time.perf_counter()
 
     # Generate responses based on mode
     if mode == ArenaMode.TEXT:
@@ -1595,12 +1802,29 @@ async def interact(request: InteractRequest):
             content_type="image",
         )
 
+    t_llm_duel = time.perf_counter() - t_llm_start
+
     # Update costs
     state.cupid.total_cost += c_left.cost + c_right.cost
     state.baseline.total_cost += b_left.cost + b_right.cost
     state.round_count += 1
 
     total_cost = state.cupid.total_cost + state.baseline.total_cost
+
+    # ── Compute timing totals ──
+    t_total = t_gp_update + t_ucb_scoring + t_aux_llm + t_llm_duel + t_belief_update
+    t_cupid_overhead = t_gp_update + t_ucb_scoring + t_aux_llm + t_belief_update
+
+    timing_entry = {
+        "round": state.round_count,
+        "gp_update": round(t_gp_update, 6),
+        "ucb_scoring": round(t_ucb_scoring, 6),
+        "aux_llm": round(t_aux_llm, 6),
+        "llm_duel": round(t_llm_duel, 6),
+        "belief_update": round(t_belief_update, 6),
+        "total": round(t_total, 6),
+        "cupid_overhead": round(t_cupid_overhead, 6),
+    }
 
     # Build history entry
     history_entry = {
@@ -1613,6 +1837,7 @@ async def interact(request: InteractRequest):
         "cupid_vote": request.cupid_vote,
         "baseline_vote": request.baseline_vote,
         "total_cost": total_cost,
+        "timing": timing_entry,
     }
 
     # Add image URLs for image mode
@@ -1631,6 +1856,9 @@ async def interact(request: InteractRequest):
         history_entry["baseline_right_cost"] = baseline_right_result.get("cost", 0)
 
     state.history.append(history_entry)
+
+    # ── Persist timing log to file ──
+    _append_timing_log(session_id, timing_entry)
 
     return InteractResponse(
         session_id=session_id,
@@ -1754,6 +1982,24 @@ async def get_session_data(session_id: str):
         raise HTTPException(status_code=404, detail="Session data not found")
 
 
+@app.get("/session/{session_id}/timing")
+async def get_session_timing(session_id: str):
+    """Retrieve per-round timing log for a session."""
+    log_path = f"./session_data/timing_log_{session_id}.json"
+    try:
+        with open(log_path, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        # Fall back to extracting timing from in-memory history
+        if session_id in sessions:
+            return [
+                entry.get("timing", {})
+                for entry in sessions[session_id].history
+                if "timing" in entry
+            ]
+        raise HTTPException(status_code=404, detail="Timing data not found")
+
+
 @app.post("/save-results")
 async def save_results(request: SaveResultsRequest):
     """Save complete study results to database.
@@ -1761,9 +2007,6 @@ async def save_results(request: SaveResultsRequest):
     - Text studies -> `study_results`
     - Image studies -> `image_study_results` (never writes into `study_results`)
     """
-    if not database:
-        return {"success": False, "saved": False, "message": "Database not available"}
-
     if not request.session_id:
         return {"success": False, "saved": False, "message": "Missing session_id"}
 
@@ -1775,6 +2018,26 @@ async def save_results(request: SaveResultsRequest):
         results_dict = request.model_dump()
     except Exception:
         results_dict = request.dict()
+
+    # Always save to local file (works without database)
+    output_dir = "./session_data"
+    os.makedirs(output_dir, exist_ok=True)
+    filename = f"{output_dir}/results_{request.session_id}.json"
+    try:
+        with open(filename, "w") as f:
+            json.dump(results_dict, f, indent=2, default=str)
+    except Exception as e:
+        print(f"Warning: Could not save results to file: {e}")
+
+    if not database:
+        return {
+            "success": True,
+            "saved": True,
+            "message": "Results saved to local file (database not available)",
+            "session_id": request.session_id,
+            "mode": mode,
+            "file": filename,
+        }
 
     # For image studies, also embed all image generation rows (urls + ucb score + metadata)
     if mode == "image":
@@ -1812,16 +2075,6 @@ async def save_results(request: SaveResultsRequest):
                 "results_json": json.dumps(results_dict, default=str),
             },
         )
-
-        # Also save to file as backup
-        output_dir = "./session_data"
-        os.makedirs(output_dir, exist_ok=True)
-        filename = f"{output_dir}/results_{request.session_id}.json"
-        try:
-            with open(filename, "w") as f:
-                json.dump(results_dict, f, indent=2, default=str)
-        except Exception as e:
-            print(f"Warning: Could not save results to file: {e}")
 
         return {
             "success": True,

@@ -17,6 +17,7 @@ backend/__pycache__/
 *.pyc
 
 backend/session_data/*
+.env
 
 # Editor directories and files
 .vscode/*
